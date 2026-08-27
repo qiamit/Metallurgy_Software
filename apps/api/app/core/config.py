@@ -18,6 +18,10 @@ class Settings(BaseSettings):
             url = url.replace("postgres://", "postgresql+asyncpg://", 1)
         elif url.startswith("postgresql://") and "+asyncpg" not in url:
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # asyncpg SSL often fails on Railway private networking without certs
+        if "ssl=" not in url and url.startswith("postgresql+asyncpg://"):
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}ssl=disable"
         object.__setattr__(self, "database_url", url)
 
     storage_backend: str = "local"  # local | s3

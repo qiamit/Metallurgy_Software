@@ -16,8 +16,18 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSe
 
 
 async def init_db() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    import asyncio
+
+    last_error: Exception | None = None
+    for attempt in range(1, 16):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            await asyncio.sleep(min(2 * attempt, 10))
+    raise RuntimeError(f"Database init failed after retries: {last_error}")
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
