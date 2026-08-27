@@ -24,14 +24,15 @@ async def init_db() -> None:
     import asyncio
 
     last_error: Exception | None = None
-    for attempt in range(1, 16):
+    for attempt in range(1, 8):
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             return
         except Exception as exc:  # noqa: BLE001
             last_error = exc
-            await asyncio.sleep(min(2 * attempt, 10))
+            print(f"DB init attempt {attempt} failed: {exc}")
+            await asyncio.sleep(min(2 * attempt, 8))
     raise RuntimeError(f"Database init failed after retries: {last_error}")
 
 
