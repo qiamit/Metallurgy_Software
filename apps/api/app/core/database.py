@@ -7,10 +7,15 @@ from app.models.db import Base
 
 settings = get_settings()
 
+connect_args = {}
+if settings.database_url.startswith("postgresql+asyncpg://"):
+    connect_args = {"ssl": False}
+
 engine = create_async_engine(
-    settings.database_url,
+    settings.database_url.split("?")[0],
     echo=False,
     future=True,
+    connect_args=connect_args,
 )
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
