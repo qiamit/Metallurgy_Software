@@ -15,12 +15,17 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    import asyncio
+
     Path(settings.local_storage_path).mkdir(parents=True, exist_ok=True)
-    try:
-        await init_db()
-    except Exception as exc:  # noqa: BLE001
-        # Allow process to boot for healthchecks; endpoints needing DB will fail until ready.
-        print(f"WARNING: database init deferred: {exc}")
+
+    async def _bg_init() -> None:
+        try:
+            await init_db()
+        except Exception as exc:  # noqa: BLE001
+            print(f"WARNING: background database init failed: {exc}")
+
+    asyncio.create_task(_bg_init())
     yield
 
 
