@@ -1,0 +1,9 @@
+# Metallurgy Software monorepo
+# Services use Dockerfiles under apps/*
+
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

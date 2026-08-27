@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Metallurgy Camera Bridge</title>
+    <style>
+      :root {
+        --bg: #eef2f3;
+        --ink: #1f2a30;
+        --accent: #2f6f6a;
+        --line: #d5dee3;
+        --panel: #f7f9fa;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      main {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 16px;
+        padding: 20px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      video {
+        width: 100%;
+        background: #111;
+        border-radius: 8px;
+        aspect-ratio: 16/10;
+      }
+      input,
+      select,
+      button {
+        width: 100%;
+        margin-top: 6px;
+        margin-bottom: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+      }
+      button {
+        background: var(--accent);
+        color: white;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      h1 {
+        margin: 0 0 8px;
+      }
+      .muted {
+        color: #5b6b73;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>Local Microscope Bridge</h1>
+        <p class="muted">
+          Phase 3 desktop helper. Uses local cameras (including USB devices exposed to
+          the OS). For proprietary SDKs, connect native modules in main.js.
+        </p>
+        <video id="preview" autoplay muted playsinline></video>
+        <button id="start">Start camera</button>
+        <button id="snap">Capture & upload to SaaS</button>
+        <pre id="log" class="muted"></pre>
+      </section>
+      <section class="card">
+        <label>API URL</label>
+        <input id="apiUrl" value="http://127.0.0.1:8000" />
+        <label>Access token</label>
+        <input id="token" placeholder="JWT from web login" />
+        <label>Organization ID</label>
+        <input id="orgId" />
+        <label>Sample ID</label>
+        <input id="sampleId" />
+        <label>Calibration ID (optional)</label>
+        <input id="calibrationId" />
+        <label>Analysis type</label>
+        <select id="analysisType">
+          <option value="grain_size">grain_size</option>
+          <option value="inclusion">inclusion</option>
+          <option value="decarb">decarb</option>
+          <option value="micro">micro</option>
+          <option value="macro">macro</option>
+        </select>
+      </section>
+    </main>
+    <script>
+      const log = (msg) => {
+        document.getElementById("log").textContent = msg;
+      };
+      let stream;
+      document.getElementById("start").onclick = async () => {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        document.getElementById("preview").srcObject = stream;
+        log("Camera started");
+      };
+      document.getElementById("snap").onclick = async () => {
+        const video = document.getElementById("preview");
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        const filePath = await window.bridge.saveTempFrame(dataUrl);
+        const job = await window.bridge.uploadFrame({
+          apiUrl: document.getElementById("apiUrl").value,
+          token: document.getElementById("token").value,
+          orgId: document.getElementById("orgId").value,
+          sampleId: document.getElementById("sampleId").value,
+          calibrationId: document.getElementById("calibrationId").value || null,
+          analysisType: document.getElementById("analysisType").value,
+          runAi: true,
+          filePath,
+        });
+        log("Uploaded job " + job.id + " status=" + job.status);
+      };
+    </script>
+  </body>
+</html>

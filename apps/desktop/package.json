@@ -1,0 +1,16 @@
+{
+  "name": "metallurgy-desktop-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phase 3 Electron bridge for proprietary USB microscope cameras",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "dependencies": {
+    "electron": "^35.1.2",
+    "form-data": "^4.0.2",
+    "node-fetch": "^2.7.0"
+  }
+}

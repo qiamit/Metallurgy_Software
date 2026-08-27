@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #eef2f3;
+  --panel: #f7f9fa;
+  --ink: #1f2a30;
+  --muted: #5b6b73;
+  --line: #d5dee3;
+  --accent: #2f6f6a;
+  --accent-ink: #1d4744;
+  --accent-soft: #d9ebe9;
+  --warn: #9a6b2f;
+  --danger: #8f3d3d;
+  --ok: #2f6b45;
+  --hero-grad: radial-gradient(1200px 500px at 10% -10%, #c9ddd9 0%, transparent 55%),
+    radial-gradient(900px 400px at 90% 0%, #d8dde0 0%, transparent 50%),
+    linear-gradient(180deg, #f4f7f8 0%, #e8eef0 100%);
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-source);
+  --font-display: var(--font-display);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-source), "Segoe UI", sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: -0.02em;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, white);
+  border-color: var(--accent);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-ok {
+  background: #dcefe3;
+  color: var(--ok);
+}
+
+.badge-warn {
+  background: #f3e7d4;
+  color: var(--warn);
+}
+
+.badge-danger {
+  background: #f3dede;
+  color: var(--danger);
+}
+
+.badge-muted {
+  background: #e6ebed;
+  color: var(--muted);
+}
