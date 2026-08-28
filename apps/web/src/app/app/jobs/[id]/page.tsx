@@ -12,7 +12,9 @@ export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<AnalysisJob | null>(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [aiNotice, setAiNotice] = useState("");
 
   async function load() {
     if (!orgId) return;
@@ -24,9 +26,32 @@ export default function JobDetailPage() {
     load().catch((e) => setError(e.message));
   }, [orgId, params.id]);
 
+  async function retryAi() {
+    if (!orgId || !job || aiBusy) return;
+    if (!job.source_image_key) {
+      setError("Cannot Retry AI — Source Image Is Missing for This Job.");
+      return;
+    }
+    setAiBusy(true);
+    setError("");
+    setAiNotice("Retrying AI analysis… This may take up to a minute.");
+    try {
+      const updated = await api<AnalysisJob>(`/api/orgs/${orgId}/jobs/${job.id}/ai`, {
+        method: "POST",
+      });
+      setJob(updated);
+      setAiNotice("AI analysis updated.");
+    } catch (e) {
+      setAiNotice("");
+      setError(e instanceof Error ? e.message : "Retry Failed");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function review(approve: boolean) {
-    if (!orgId || !job) return;
-    setBusy(true);
+    if (!orgId || !job || reviewBusy) return;
+    setReviewBusy(true);
     try {
       await api(`/api/orgs/${orgId}/jobs/${job.id}/review`, {
         method: "POST",
@@ -34,14 +59,14 @@ export default function JobDetailPage() {
       });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Review failed");
+      setError(e instanceof Error ? e.message : "Review Failed");
     } finally {
-      setBusy(false);
+      setReviewBusy(false);
     }
   }
 
   if (!job) {
-    return <div className="text-[var(--muted)]">{error || "Loading job…"}</div>;
+    return <div className="text-[var(--muted)]">{error || "Loading Job…"}</div>;
   }
 
   const deltas = (job.comparison?.deltas || {}) as Record<
@@ -51,22 +76,16 @@ export default function JobDetailPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/app/jobs" className="text-sm text-[var(--accent)]">
-            ← All jobs
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-4 min-w-0">
+          <Link href="/app/analysis?view=jobs" className="text-sm text-[var(--accent)] shrink-0">
+            ← All Jobs
           </Link>
-          <h1 className="text-3xl font-semibold mt-2">
+          <h1 className="page-title min-w-0">
             {ANALYSIS_LABELS[job.analysis_type]}
           </h1>
-          <p className="text-[var(--muted)] mt-1">
-            Status: <span className="capitalize">{job.status}</span>
-            {job.comparison?.agreement != null
-              ? ` · AI agreement: ${String(job.comparison.agreement)}`
-              : null}
-          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <a
             className="btn btn-ghost"
             href={`${getApiUrl()}/api/orgs/${orgId}/jobs/${job.id}/report.pdf`}
@@ -87,48 +106,65 @@ export default function JobDetailPage() {
                 });
             }}
           >
-            Download PDF report
+            Download PDF Report
           </a>
-          <button className="btn btn-ghost" disabled={busy} onClick={() => review(true)}>
+          <button
+            className="btn btn-primary"
+            disabled={aiBusy || !job.source_image_key}
+            onClick={retryAi}
+            type="button"
+          >
+            {aiBusy ? "Retrying…" : "Retry AI Analysis"}
+          </button>
+          <button className="btn btn-ghost" disabled={reviewBusy} onClick={() => review(true)} type="button">
             Approve
           </button>
-          <button className="btn btn-ghost" disabled={busy} onClick={() => review(false)}>
+          <button className="btn btn-ghost" disabled={reviewBusy} onClick={() => review(false)} type="button">
             Reject
           </button>
         </div>
       </div>
 
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {aiNotice && !error && <p className="text-sm text-[var(--accent)]">{aiNotice}</p>}
       {job.error_message && (
         <p className="card p-4 text-sm text-[var(--danger)]">{job.error_message}</p>
       )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="card p-4">
-          <h2 className="font-semibold mb-3">Source image</h2>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={fileUrl(job.source_image_key)}
-            alt="Source"
-            className="w-full rounded-lg border border-[var(--line)] bg-white object-contain max-h-[420px]"
-          />
+          <h2 className="font-semibold mb-3">Source Image</h2>
+          {job.source_image_key ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={fileUrl(job.source_image_key)}
+              alt="Source"
+              className="w-full border border-[var(--line)] bg-white object-contain max-h-[420px]"
+            />
+          ) : (
+            <p className="text-sm text-[var(--muted)] py-8 text-center">No Source Image Available.</p>
+          )}
         </div>
         <div className="card p-4">
-          <h2 className="font-semibold mb-3">Software overlay</h2>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={fileUrl(job.overlay_image_key)}
-            alt="Overlay"
-            className="w-full rounded-lg border border-[var(--line)] bg-white object-contain max-h-[420px]"
-          />
+          <h2 className="font-semibold mb-3">Software Overlay</h2>
+          {job.overlay_image_key ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={fileUrl(job.overlay_image_key)}
+              alt="Overlay"
+              className="w-full border border-[var(--line)] bg-white object-contain max-h-[420px]"
+            />
+          ) : (
+            <p className="text-sm text-[var(--muted)] py-8 text-center">No Overlay Available.</p>
+          )}
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="card p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Software analysis (Primary)</h2>
-            <span className="badge badge-ok">Standards-oriented</span>
+            <h2 className="font-semibold">Software Analysis (Primary)</h2>
+            <span className="badge badge-ok">Standards-Oriented</span>
           </div>
           <dl className="mt-4 space-y-2 text-sm">
             {Object.entries(job.software_result || {}).map(([k, v]) =>
@@ -144,11 +180,11 @@ export default function JobDetailPage() {
 
         <div className="card p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">AI analysis (Advisory)</h2>
-            <span className="badge badge-warn">Not sole authority</span>
+            <h2 className="font-semibold">AI Analysis (Advisory)</h2>
+            <span className="badge badge-warn">Not Sole Authority</span>
           </div>
           <p className="mt-3 text-sm text-[var(--muted)]">
-            {String(job.ai_result?.observations || "No AI observations.")}
+            {String(job.ai_result?.observations || "No AI Observations.")}
           </p>
           <dl className="mt-4 space-y-2 text-sm">
             {Object.entries(job.ai_result || {})
@@ -171,7 +207,7 @@ export default function JobDetailPage() {
       <div className="card p-5">
         <h2 className="font-semibold">Comparison</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          {String(job.comparison?.summary || "Comparison unavailable.")}
+          {String(job.comparison?.summary || "Comparison Unavailable.")}
         </p>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
@@ -195,7 +231,7 @@ export default function JobDetailPage() {
               {!Object.keys(deltas).length && (
                 <tr>
                   <td colSpan={4} className="py-4 text-[var(--muted)]">
-                    No numeric deltas (AI may be in fallback mode without API key).
+                    No Numeric Deltas (AI May Be in Fallback Mode Without API Key).
                   </td>
                 </tr>
               )}

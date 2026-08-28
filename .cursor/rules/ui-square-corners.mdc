@@ -1,0 +1,57 @@
+---
+description: Metallurgy Lab UI — square corners and AppShell content padding
+globs: apps/web/**/*
+alwaysApply: true
+---
+
+# SteelLab Pro UI Standards
+
+## Square corners
+
+All user-facing surfaces use **square corners** (`border-radius: 0`). No rounded pills, chips, or soft cards.
+
+### Applies to
+
+- Buttons (`.btn`, `.btn-primary`, `.btn-ghost`)
+- Inputs, selects, textareas
+- Cards, panels, modals, dropdown menus
+- Header bar, sidebar nav items, footer areas
+- Tables and table wrappers
+- Badges, preview panels, auth cards, feature cards
+- Avatars and logo marks (square, not circular)
+
+### Implementation
+
+1. **Theme token**: `--radius: 0` in `apps/web/src/app/globals.css`
+2. **Tailwind**: `@theme inline` sets `--radius-sm` through `--radius-full` to `0`
+3. **CSS classes**: use `border-radius: 0` or `var(--radius)` on shared components
+4. **Tailwind utilities**: use `rounded-none` if needed; **never** `rounded-lg`, `rounded-xl`, `rounded-full`, etc.
+
+## AppShell main content padding
+
+All authenticated app pages render inside `AppShell` main content. Padding is **only** on that shell wrapper — not repeated on each page root.
+
+- **Top**: `2mm`
+- **Left**: `2mm`
+- **Right**: `2mm`
+- **Bottom**: none (content scrolls to edge)
+
+```tsx
+// AppShell.tsx — single source of truth
+<div className="flex-1 pt-[2mm] px-[2mm] overflow-auto">{children}</div>
+```
+
+```tsx
+// ❌ BAD — duplicate padding on every page
+<div className="space-y-8 p-[2mm]">...</div>
+
+// ✅ GOOD — page root without extra shell padding
+<div className="space-y-8 w-full">...</div>
+```
+
+Do **not** use `p-8` or large fixed padding on the main content wrapper unless the user explicitly requests a change.
+
+## Copy & language
+
+- App UI text: **English**, Title Case for labels (small words like *of*, *for*, *the* stay lowercase unless first/last).
+- Explanations to the user: **Hindi** when requested.

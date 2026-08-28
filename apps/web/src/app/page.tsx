@@ -2,39 +2,44 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen" style={{ background: "var(--hero-grad)" }}>
-      <header className="mx-auto max-w-6xl px-6 py-6 flex items-center justify-between">
-        <div className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight">
-          Metallurgy Lab
-        </div>
-        <div className="flex gap-3">
-          <Link href="/login" className="btn btn-ghost">
-            Sign in
-          </Link>
-          <Link href="/register" className="btn btn-primary">
-            Start free
-          </Link>
+    <div className="landing-hero min-h-screen">
+      <header className="landing-nav sticky top-0 z-10">
+        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-none bg-gradient-to-br from-[var(--accent)] to-[#0369a1] flex items-center justify-center">
+              <span className="text-white text-xs font-bold">ML</span>
+            </div>
+            <span className="font-bold text-[var(--ink)] tracking-tight">Metallurgy Lab</span>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/login" className="btn btn-ghost">
+              Sign In
+            </Link>
+            <Link href="/register" className="btn btn-primary">
+              Start Free
+            </Link>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 pt-16 pb-24">
-        <p className="text-sm uppercase tracking-[0.18em] text-[var(--accent)] mb-4">
+        <p className="text-xs tracking-[0.12em] text-[var(--accent)] font-bold mb-4">
           Laboratory Image Analysis Platform
         </p>
-        <h1 className="max-w-3xl text-5xl md:text-6xl font-semibold text-[var(--ink)] leading-[1.05]">
+        <h1 className="max-w-3xl text-5xl md:text-6xl font-extrabold text-[var(--ink)] leading-[1.05]">
           Metallurgy Lab
         </h1>
         <p className="mt-5 max-w-2xl text-lg text-[var(--muted)] leading-relaxed">
-          Capture or upload microscope images, run standards-aligned software
-          analysis, and cross-check results with AI — built for multi-tenant labs
-          with RBAC.
+          Capture or Upload Microscope Images, Run Standards-Aligned Software
+          Analysis, and Cross-Check Results With AI — Built for Multi-Tenant Labs
+          With RBAC.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link href="/register" className="btn btn-primary">
-            Create your lab workspace
+            Create Your Lab Workspace
           </Link>
           <Link href="/login" className="btn btn-ghost">
-            Sign in to existing org
+            Sign In to Existing Org
           </Link>
         </div>
 
@@ -42,19 +47,19 @@ export default function HomePage() {
           {[
             {
               title: "Grain Size · ISO 643",
-              body: "Intercept and planimetric estimates with overlays.",
+              body: "Intercept and Planimetric Estimates With Overlays.",
             },
             {
               title: "Inclusion · ISO 4967",
-              body: "Type A/B/C/D/DS heuristics with severity indices.",
+              body: "Type A/B/C/D/DS Heuristics With Severity Indices.",
             },
             {
               title: "Decarb · ISO 3887",
-              body: "Metallographic depth from edge transition analysis.",
+              body: "Metallographic Depth From Edge Transition Analysis.",
             },
           ].map((item) => (
-            <article key={item.title} className="card p-5">
-              <h2 className="text-lg font-semibold">{item.title}</h2>
+            <article key={item.title} className="feature-card">
+              <h2>{item.title}</h2>
               <p className="mt-2 text-sm text-[var(--muted)]">{item.body}</p>
             </article>
           ))}

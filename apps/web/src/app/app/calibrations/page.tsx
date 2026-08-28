@@ -46,9 +46,9 @@ export default function CalibrationsPage() {
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-semibold">Calibration</h1>
-        <p className="text-[var(--muted)] mt-1">
-          Stage micrometer calibrations (µm/px) per objective — required before accurate analysis.
+        <h1 className="page-title">Calibration</h1>
+        <p className="page-subtitle">
+          Stage Micrometer Calibrations (µm/px) per Objective — Required Before Accurate Analysis.
         </p>
       </div>
 
@@ -83,14 +83,14 @@ export default function CalibrationsPage() {
         {error && <p className="text-sm text-[var(--danger)] md:col-span-2">{error}</p>}
         <div className="md:col-span-2">
           <button className="btn btn-primary" type="submit">
-            Save calibration
+            Save Calibration
           </button>
         </div>
       </form>
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-[var(--accent)] text-white">
+          <thead className="table-head">
             <tr>
               <th className="text-left px-4 py-3">Name</th>
               <th className="text-left px-4 py-3">Objective</th>
@@ -110,7 +110,7 @@ export default function CalibrationsPage() {
             {!items.length && (
               <tr>
                 <td className="px-4 py-6 text-[var(--muted)]" colSpan={4}>
-                  No calibrations yet.
+                  No Calibrations Yet.
                 </td>
               </tr>
             )}

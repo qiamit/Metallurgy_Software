@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
-import { Source_Sans_3, Libre_Franklin } from "next/font/google";
+import { Plus_Jakarta_Sans, DM_Sans } from "next/font/google";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
 
-const sourceSans = Source_Sans_3({
-  variable: "--font-source",
+const bodyFont = DM_Sans({
+  variable: "--font-body",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const display = Libre_Franklin({
+const displayFont = Plus_Jakarta_Sans({
   variable: "--font-display",
   subsets: ["latin"],
+  weight: ["600", "700", "800"],
 });
 
 export const metadata: Metadata = {
   title: "Metallurgy Lab — Image Analysis SaaS",
   description:
-    "Standards-aligned metallography analysis for grain size, inclusions, decarburization, micro and macro testing.",
+    "Standards-Aligned Metallography Analysis for Grain Size, Inclusions, Decarburization, Micro and Macro Testing.",
 };
 
 export default function RootLayout({
@@ -26,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${sourceSans.variable} ${display.variable} antialiased`}>
+      <body className={`${bodyFont.variable} ${displayFont.variable} antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

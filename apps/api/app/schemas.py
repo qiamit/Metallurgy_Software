@@ -113,3 +113,37 @@ class DashboardOut(BaseModel):
     completed: int
     pending: int
     by_type: dict[str, int]
+
+
+class AiSettingsIn(BaseModel):
+    provider: str = "deepseek"
+    api_key: str | None = None
+    model: str | None = None
+    clear_key: bool = False
+
+
+class AiSettingsOut(BaseModel):
+    provider: str
+    model: str
+    configured: bool
+    api_key_hint: str | None = None
+
+
+class LabSettingsIn(BaseModel):
+    company_name: str
+    gst_number: str = ""
+    contact_person_name: str = ""
+    mobile_number: str = ""
+    email_id: str = ""
+    address: str = ""
+    pin_code: str = ""
+    city: str = ""
+    state: str = ""
+    country: str = ""
+
+
+class LabSettingsOut(LabSettingsIn):
+    company_logo_key: str | None = None
+    company_header_key: str | None = None
+    company_footer_key: str | None = None
+    watermark_key: str | None = None

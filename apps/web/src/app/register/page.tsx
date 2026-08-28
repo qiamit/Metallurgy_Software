@@ -25,47 +25,59 @@ export default function RegisterPage() {
       await register(form);
       router.push("/app");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      setError(err instanceof Error ? err.message : "Registration Failed");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-4" style={{ background: "var(--hero-grad)" }}>
-      <form onSubmit={onSubmit} className="card w-full max-w-md p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold">Create lab workspace</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">You become the organization owner</p>
-        <div className="mt-6 space-y-4">
-          {(
-            [
-              ["full_name", "Full name", "text"],
-              ["organization_name", "Organization / Lab name", "text"],
-              ["email", "Email", "email"],
-              ["password", "Password (min 8)", "password"],
-            ] as const
-          ).map(([key, label, type]) => (
-            <div key={key}>
-              <label className="text-xs text-[var(--muted)]">{label}</label>
-              <input
-                className="input mt-1"
-                type={type}
-                required
-                minLength={key === "password" ? 8 : undefined}
-                value={form[key]}
-                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-              />
-            </div>
-          ))}
-          {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-          <button className="btn btn-primary w-full" disabled={busy}>
-            {busy ? "Creating…" : "Create workspace"}
-          </button>
-        </div>
-        <p className="mt-4 text-sm text-[var(--muted)]">
-          Already registered? <Link className="text-[var(--accent)]" href="/login">Sign in</Link>
+    <div className="auth-shell">
+      <div className="auth-brand hidden md:flex">
+        <p className="text-xs tracking-[0.12em] text-teal-200/80 font-semibold mb-4">
+          Get Started Free
         </p>
-      </form>
+        <h1>Create Your Lab Workspace</h1>
+        <p className="mt-4 text-teal-100/70 max-w-sm leading-relaxed">
+          You Become the Organization Owner. Invite Analysts, Reviewers, and Admins
+          With Role-Based Access Control.
+        </p>
+      </div>
+      <div className="auth-form-wrap">
+        <form onSubmit={onSubmit} className="auth-card">
+          <h1 className="text-2xl font-bold">Create Lab Workspace</h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">You Become the Organization Owner</p>
+          <div className="mt-6 space-y-4">
+            {(
+              [
+                ["full_name", "Full Name", "text"],
+                ["organization_name", "Organization / Lab Name", "text"],
+                ["email", "Email", "email"],
+                ["password", "Password (Min 8)", "password"],
+              ] as const
+            ).map(([key, label, type]) => (
+              <div key={key}>
+                <label className="text-xs font-semibold text-[var(--muted)] tracking-wide">{label}</label>
+                <input
+                  className="input mt-1.5"
+                  type={type}
+                  required
+                  minLength={key === "password" ? 8 : undefined}
+                  value={form[key]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                />
+              </div>
+            ))}
+            {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+            <button className="btn btn-primary w-full" disabled={busy}>
+              {busy ? "Creating…" : "Create Workspace"}
+            </button>
+          </div>
+          <p className="mt-4 text-sm text-[var(--muted)]">
+            Already Registered? <Link className="text-[var(--accent)] font-semibold hover:underline" href="/login">Sign In</Link>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

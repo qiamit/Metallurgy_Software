@@ -2,12 +2,26 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
 from app.core.security import require_role
-from app.models.db import AnalysisJob, AnalysisType, JobStatus, Role, Sample
-from app.schemas import DashboardOut, JobCreateIn, JobOut, ReviewIn, SampleIn, SampleOut
-from app.services.pipeline import process_job
+from app.models.db import AnalysisJob, AnalysisType, JobStatus, Organization, Role, Sample
+from app.schemas import (
+    AiSettingsIn,
+    AiSettingsOut,
+    DashboardOut,
+    JobCreateIn,
+    JobOut,
+    LabSettingsIn,
+    LabSettingsOut,
+    ReviewIn,
+    SampleIn,
+    SampleOut,
+)
+from app.services.ai_settings import ai_settings_public, merge_org_ai_settings
+from app.services.lab_settings import merge_lab_settings, read_lab_settings, set_lab_asset
+from app.services.pipeline import process_job, rerun_ai_only
 from app.services.reports import build_analysis_pdf
 from app.services.storage import storage
 
@@ -55,6 +69,100 @@ async def dashboard(
         pending=pending or 0,
         by_type=by_type,
     )
+
+
+@router.get("/ai-settings", response_model=AiSettingsOut)
+async def get_ai_settings(
+    organization_id: str,
+    ctx=Depends(require_role(Role.admin)),
+    db: AsyncSession = Depends(get_db),
+):
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return AiSettingsOut(**ai_settings_public(org.branding))
+
+
+@router.put("/ai-settings", response_model=AiSettingsOut)
+async def update_ai_settings(
+    organization_id: str,
+    payload: AiSettingsIn,
+    ctx=Depends(require_role(Role.admin)),
+    db: AsyncSession = Depends(get_db),
+):
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    if payload.provider.lower() not in {"deepseek", "openai"}:
+        raise HTTPException(status_code=400, detail="Provider must be deepseek or openai")
+    org.branding = merge_org_ai_settings(
+        org.branding,
+        provider=payload.provider,
+        model=payload.model,
+        api_key=payload.api_key,
+        clear_key=payload.clear_key,
+    )
+    flag_modified(org, "branding")
+    await db.commit()
+    await db.refresh(org)
+    return AiSettingsOut(**ai_settings_public(org.branding))
+
+
+@router.get("/lab-settings", response_model=LabSettingsOut)
+async def get_lab_settings(
+    organization_id: str,
+    ctx=Depends(require_role(Role.admin)),
+    db: AsyncSession = Depends(get_db),
+):
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return LabSettingsOut(**read_lab_settings(org.branding, org.name))
+
+
+@router.put("/lab-settings", response_model=LabSettingsOut)
+async def update_lab_settings(
+    organization_id: str,
+    payload: LabSettingsIn,
+    ctx=Depends(require_role(Role.admin)),
+    db: AsyncSession = Depends(get_db),
+):
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    org.name = payload.company_name.strip() or org.name
+    org.branding = merge_lab_settings(org.branding, payload.model_dump())
+    flag_modified(org, "branding")
+    await db.commit()
+    await db.refresh(org)
+    return LabSettingsOut(**read_lab_settings(org.branding, org.name))
+
+
+@router.post("/lab-settings/assets/{asset_type}", response_model=LabSettingsOut)
+async def upload_lab_asset(
+    organization_id: str,
+    asset_type: str,
+    file: UploadFile = File(...),
+    ctx=Depends(require_role(Role.admin)),
+    db: AsyncSession = Depends(get_db),
+):
+    org = await db.get(Organization, organization_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    if asset_type not in {"logo", "header", "footer", "watermark"}:
+        raise HTTPException(status_code=400, detail="Invalid asset type")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    key = storage.save_bytes(data, file.filename or f"{asset_type}.png", folder="branding")
+    try:
+        org.branding = set_lab_asset(org.branding, asset_type, key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    flag_modified(org, "branding")
+    await db.commit()
+    await db.refresh(org)
+    return LabSettingsOut(**read_lab_settings(org.branding, org.name))
 
 
 @router.get("/samples", response_model=list[SampleOut])
@@ -159,8 +267,8 @@ async def rerun_ai(
     job = await db.get(AnalysisJob, job_id)
     if not job or job.organization_id != organization_id:
         raise HTTPException(status_code=404, detail="Job not found")
-    if not job.software_result:
-        job = await process_job(db, job, run_ai=True)
+    if job.software_result and job.source_image_key:
+        job = await rerun_ai_only(db, job)
     else:
         job = await process_job(db, job, run_ai=True)
     return job
@@ -184,6 +292,21 @@ async def review_job(
     await db.commit()
     await db.refresh(job)
     return job
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(
+    organization_id: str,
+    job_id: str,
+    ctx=Depends(require_role(Role.analyst)),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await db.get(AnalysisJob, job_id)
+    if not job or job.organization_id != organization_id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    await db.delete(job)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.get("/jobs/{job_id}/report.pdf")
