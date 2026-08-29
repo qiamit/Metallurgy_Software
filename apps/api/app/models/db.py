@@ -151,6 +151,27 @@ class AnalysisJob(Base):
     sample: Mapped[Sample] = relationship(back_populates="jobs")
 
 
+class RingTest(Base):
+    """IS 1786:2008 TMT / rebar rib (ring) thickness measurement record."""
+
+    __tablename__ = "ring_tests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), nullable=False, index=True)
+    sample_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sample_diameter_mm: Mapped[float] = mapped_column(Float, nullable=False)
+    batch_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    mfg_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    tester_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    test_date: Mapped[str] = mapped_column(String(20), nullable=False)
+    test_time: Mapped[str] = mapped_column(String(20), nullable=False)
+    image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    results: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    observations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

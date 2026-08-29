@@ -23,9 +23,6 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">
-          Overview of Samples, Jobs, and Module Usage for Your Lab.
-        </p>
       </div>
       {error && <p className="text-[var(--danger)] text-sm">{error}</p>}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">

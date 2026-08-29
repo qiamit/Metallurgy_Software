@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 
 from app.core.config import get_settings
 from app.core.database import init_db
-from app.routers import analysis, auth, calibrations
+from app.routers import analysis, auth, calibrations, ring_tests
 from app.services.storage import storage
 
 settings = get_settings()
@@ -41,6 +41,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(calibrations.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
+app.include_router(ring_tests.router, prefix="/api")
 
 
 @app.get("/health")

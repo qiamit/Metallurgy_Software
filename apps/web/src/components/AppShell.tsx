@@ -9,6 +9,7 @@ import {
   Beaker,
   Camera,
   ChevronDown,
+  CircleDot,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/app/capture", label: "Capture Studio", icon: Camera },
   { href: "/app/calibrations", label: "Calibration", icon: Ruler },
   { href: "/app/analysis", label: "Analysis & Jobs", icon: Beaker },
+  { href: "/app/ring-test", label: "Ring Test", icon: CircleDot },
   { href: "/app/periodic-table", label: "Periodic Table", icon: Atom },
 ];
 
