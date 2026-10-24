@@ -1,62 +1,47 @@
-# Metallurgy Lab — Image Analysis SaaS
+# Metallurgy Lab — Image Analysis SaaS (Railway)
 
-Multi-tenant metallography analysis platform with:
+Multi-tenant metallography analysis platform. Same stack and layout as QIRLPL LIMS:
+React + Vite frontend, and a backend that runs **only on Railway** (API gateway, Auth, PostgREST,
+Storage, Postgres, functions, PDF). It does not use Supabase Cloud; the browser uses `supabase-js`
+against the Railway API gateway.
 
-- Browser USB webcam capture + image upload
-- Deterministic OpenCV software analysis (primary)
-- Vision AI advisory comparison
-- RBAC (owner / admin / analyst / reviewer / viewer)
-- Modules: Grain Size (ISO 643), Inclusion (ISO 4967), Decarb (ISO 3887), Micro, Macro (IS 10138)
-- Phase 3 Electron camera bridge for proprietary SDKs
+- Browser webcam capture + image upload, canvas editor and annotations (Capture Studio)
+- Deterministic OpenCV analysis (primary): Grain Size (ISO 643), Inclusion (ISO 4967), Decarb (ISO 3887), Micro, Macro (IS 10138)
+- Vision AI advisory cross-check (DeepSeek / OpenAI, key stored per lab on the server)
+- Ring Test (IS 1786:2008 TMT rib measurement) with certificates
+- Periodic table with metallurgy notes
+- Roles per lab: owner / admin / reviewer / analyst / viewer (enforced by Postgres RLS)
 
-## Monorepo
+## Project Structure
 
 ```
-apps/web       Next.js SaaS UI
-apps/api       FastAPI + OpenCV analysis
-apps/worker    Redis/RQ worker entrypoint
-apps/desktop   Electron local camera bridge
-packages/shared  Shared TypeScript types
-standards/     Local standards PDFs (not for public redistribution)
+Metallurgy Software/
+├── frontend/                 # React 19 + TypeScript + Vite 7 + Tailwind 3 + shadcn/Radix
+└── backend/
+    ├── supabase/migrations/  # SQL migrations (+ supabase/tests: RLS tests on PGlite)
+    ├── gateway/              # Caddy API gateway
+    ├── functions/            # Node 22: register, members, OpenCV.js analysis, AI
+    ├── pdf-service/          # Playwright HTML → PDF
+    └── scripts/
+standards/                    # Local standards PDFs (not for redistribution)
+docs/REBUILD_PLAN.md          # Feature inventory and migration notes from the old Next.js/FastAPI app
 ```
 
-## Local development
+Railway services and setup order: see [backend/README.md](backend/README.md).
 
-### API
+## Local Setup
 
-```bash
-cd apps/api
-python -m venv .venv
-.venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
+1. `npm install --prefix frontend`
+2. Copy `frontend/.env.example` to `frontend/.env` and set the Railway values:
+   - `VITE_SUPABASE_URL` = Railway API gateway URL
+   - `VITE_SUPABASE_ANON_KEY` = Railway anon JWT
+   - `VITE_PDF_SERVICE_URL` = Railway PDF service
+3. `npm run dev`
 
-### Web
+Optional local services: `npm run functions:dev`, `npm run pdf:install && npm run pdf:dev`.
 
-```bash
-cd apps/web
-npm install
-set NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-npm run dev
-```
+## Notes
 
-Open http://localhost:3000 — register a lab workspace, add calibration, capture/upload, run analysis.
-
-### Desktop bridge (Phase 3)
-
-```bash
-cd apps/desktop
-npm install
-npm start
-```
-
-## Railway
-
-Project ID: `5e1af02b-8472-4588-914b-a275620f937a`
-
-Services: `web`, `api`, `worker`, `Postgres`, `Redis`, bucket `metallurgy-media`.
-
-## Product rule
-
-**Software analysis is primary (standards-oriented). AI is advisory only.**
+- Never commit `.env` files.
+- Do not run `supabase link`, `supabase db push`, or `vercel` against this repo.
+- Schema changes: add SQL under `backend/supabase/migrations/` and apply on Railway Postgres.

@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Metallurgy Lab: slate paper + teal accent */
+    --ui-background: 214 33% 95%;
+    --ui-foreground: 222 47% 11%;
+
+    --ui-card: 0 0% 100%;
+    --ui-card-foreground: 222 47% 11%;
+
+    --ui-popover: 0 0% 100%;
+    --ui-popover-foreground: 222 47% 11%;
+
+    --ui-primary: 175 84% 32%;
+    --ui-primary-foreground: 0 0% 100%;
+
+    --ui-secondary: 214 32% 91%;
+    --ui-secondary-foreground: 222 47% 18%;
+
+    --ui-muted: 214 32% 93%;
+    --ui-muted-foreground: 215 16% 47%;
+
+    --ui-accent: 167 85% 89%;
+    --ui-accent-foreground: 175 77% 26%;
+
+    --ui-destructive: 0 74% 42%;
+    --ui-destructive-foreground: 0 0% 100%;
+
+    --ui-success: 142 72% 29%;
+    --ui-success-foreground: 0 0% 100%;
+
+    --ui-warning: 32 95% 37%;
+    --ui-warning-foreground: 0 0% 100%;
+
+    --ui-info: 226 71% 40%;
+    --ui-info-foreground: 0 0% 100%;
+
+    --ui-border: 216 33% 90%;
+    --ui-input: 216 26% 84%;
+    --ui-ring: 175 84% 32%;
+
+    --ui-radius: 0;
+
+    --ui-sidebar: 221 47% 7%;
+    --ui-sidebar-foreground: 215 20% 62%;
+    --ui-sidebar-border: 217 30% 20%;
+    --ui-sidebar-accent: 175 84% 32%;
+    --ui-sidebar-accent-foreground: 0 0% 100%;
+    --ui-sidebar-muted: 218 40% 14%;
+    --ui-sidebar-ring: 175 84% 32%;
+
+    --font-body: "DM Sans";
+    --font-display: "Plus Jakarta Sans";
+  }
+
+  .dark {
+    --ui-background: 222 47% 7%;
+    --ui-foreground: 210 40% 96%;
+
+    --ui-card: 222 40% 11%;
+    --ui-card-foreground: 210 40% 96%;
+
+    --ui-popover: 222 40% 11%;
+    --ui-popover-foreground: 210 40% 96%;
+
+    --ui-primary: 174 72% 40%;
+    --ui-primary-foreground: 222 47% 7%;
+
+    --ui-secondary: 217 30% 18%;
+    --ui-secondary-foreground: 210 40% 90%;
+
+    --ui-muted: 217 30% 16%;
+    --ui-muted-foreground: 215 20% 62%;
+
+    --ui-accent: 175 50% 18%;
+    --ui-accent-foreground: 167 85% 85%;
+
+    --ui-destructive: 0 72% 51%;
+    --ui-destructive-foreground: 0 0% 100%;
+
+    --ui-border: 217 30% 22%;
+    --ui-input: 217 30% 22%;
+    --ui-ring: 174 72% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-none bg-border;
+  }
+}
+
+@layer components {
+  [role='dialog'] {
+    max-width: calc(100vw - 1rem);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
