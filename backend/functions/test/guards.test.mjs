@@ -64,3 +64,45 @@ test('clientIp prefers the first X-Forwarded-For hop', () => {
   assert.equal(clientIp({ headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' }, socket: {} }), '1.2.3.4')
   assert.equal(clientIp({ headers: {}, socket: { remoteAddress: '9.9.9.9' } }), '9.9.9.9')
 })
+
+test('retryOnNetworkError retries network failures, then succeeds', async () => {
+  const { retryOnNetworkError } = await import('../lib/guards.mjs')
+  let calls = 0
+  const waits = []
+  const result = await retryOnNetworkError(
+    async () => {
+      calls += 1
+      if (calls < 3) throw new TypeError('fetch failed')
+      return 'ok'
+    },
+    { sleep: async (ms) => waits.push(ms) },
+  )
+  assert.equal(result, 'ok')
+  assert.equal(calls, 3)
+  assert.deepEqual(waits, [500, 1000])
+})
+
+test('retryOnNetworkError does not retry other errors and gives up after attempts', async () => {
+  const { retryOnNetworkError } = await import('../lib/guards.mjs')
+  let calls = 0
+  await assert.rejects(
+    retryOnNetworkError(async () => {
+      calls += 1
+      throw new Error('HTTP-level problem')
+    }),
+    /HTTP-level/,
+  )
+  assert.equal(calls, 1)
+  calls = 0
+  await assert.rejects(
+    retryOnNetworkError(
+      async () => {
+        calls += 1
+        throw new TypeError('fetch failed')
+      },
+      { attempts: 3, sleep: async () => {} },
+    ),
+    TypeError,
+  )
+  assert.equal(calls, 3)
+})

@@ -9,7 +9,7 @@ import {
 } from './lib/analysis.mjs'
 import { resolveAiConfig, runAiAnalysis, compareResults } from './lib/ai.mjs'
 import { analyzeRingImage } from './lib/ringAi.mjs'
-import { clientIp, createGate, createRateLimiter } from './lib/guards.mjs'
+import { clientIp, createGate, createRateLimiter, retryOnNetworkError } from './lib/guards.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 const REST_URL = (process.env.REST_URL || 'http://rest.railway.internal:3000').replace(/\/$/, '')
@@ -115,8 +115,11 @@ function callerJwt(req) {
   return ''
 }
 
+// Internal calls retry network failures (a dependency waking up or redeploying).
+const upstreamFetch = (url, init) => retryOnNetworkError(() => fetch(url, init))
+
 async function rest(path, init = {}) {
-  const res = await fetch(`${REST_URL}${path}`, {
+  const res = await upstreamFetch(`${REST_URL}${path}`, {
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     ...init,
     headers: {
@@ -148,7 +151,7 @@ async function restOne(path) {
 }
 
 async function authAdmin(path, init = {}) {
-  const res = await fetch(`${AUTH_URL}${path}`, {
+  const res = await upstreamFetch(`${AUTH_URL}${path}`, {
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     ...init,
     headers: {
@@ -188,7 +191,7 @@ function objectUrl(bucket, path) {
 }
 
 async function downloadObject(bucket, path) {
-  const res = await fetch(objectUrl(bucket, path), {
+  const res = await upstreamFetch(objectUrl(bucket, path), {
     headers: { Authorization: `Bearer ${SERVICE_ROLE_KEY}`, apikey: SERVICE_ROLE_KEY },
     signal: AbortSignal.timeout(60000),
   })
@@ -197,7 +200,7 @@ async function downloadObject(bucket, path) {
 }
 
 async function uploadObject(bucket, path, body, contentType) {
-  const res = await fetch(objectUrl(bucket, path), {
+  const res = await upstreamFetch(objectUrl(bucket, path), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
@@ -217,7 +220,7 @@ async function uploadObject(bucket, path, body, contentType) {
 async function requireUser(req) {
   const token = callerJwt(req)
   if (!token) throw httpError(401, 'Missing caller session')
-  const res = await fetch(`${AUTH_URL}/user`, {
+  const res = await upstreamFetch(`${AUTH_URL}/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: SERVICE_ROLE_KEY },
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })

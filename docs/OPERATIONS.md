@@ -53,6 +53,19 @@ Never edit an applied migration — the runner refuses files whose checksum chan
 
 Also enable Railway's own Postgres volume backups.
 
+**Check the schedule is really set.** Deploying with `railway up <dir> --path-as-root` used the Dockerfile from
+`railway.json` but did **not** apply its `cronSchedule`; the job ran once at deploy and had no schedule. Set it on the
+service and confirm `nextCronRunAt`:
+
+```bash
+railway environment edit -e <env> --json <<'JSON'
+{"services":{"<backup-job-service-id>":{"deploy":{"cronSchedule":"30 20 * * *","restartPolicyType":"NEVER"}}}}
+JSON
+```
+
+Run it on demand (e.g. before a risky migration) with the GraphQL mutation
+`deploymentInstanceExecutionCreate(input: { serviceInstanceId })`.
+
 ### Restore (practice this on staging every quarter)
 
 ```bash
@@ -61,6 +74,13 @@ pg_restore --clean --if-exists --no-owner --dbname="$DATABASE_URL" ./db.dump
 rclone copy backup:<bucket>/files source:<media-bucket>
 ```
 Then restart `rest` (or `NOTIFY pgrst, 'reload schema';`) and run the smoke test.
+
+## Sleeping services (staging)
+
+Public services (frontend, gateway, pdf-service) and functions may sleep — the Railway edge holds the first public
+request while they wake, the gateway retries a waking upstream for 30 s (`lb_try_duration`), and functions retry
+network errors to its dependencies. Keep **auth, rest and storage-api always on**: an upload sent to a sleeping
+storage-api over the private network was lost during staging tests. Production: no sleeping.
 
 ## Incidents
 

@@ -15,7 +15,8 @@ Project **Metallurgy Software** → environment **staging** (isolated from `prod
 | backup-job | cron 02:00 IST |
 | Buckets | `metallurgy-staging-media`, `metallurgy-staging-backup` |
 
-- App services sleep when idle; the first request after a quiet period takes a few seconds.
+- frontend, gateway, functions and pdf-service sleep when idle (first request after a quiet period takes a few
+  seconds); auth, rest and storage-api stay awake.
 - Secrets (JWT secret, anon / service-role keys, DB role passwords) live only in Railway variables. Other services
   reference `auth`'s keys (`${{auth.ANON_KEY}}`) instead of holding copies.
 - Migrations applied: all files in `backend/supabase/migrations` (tracked in `public.app_schema_migrations`).
@@ -27,5 +28,12 @@ Register lab → sign in → calibration → sample → upload to private bucket
 same as the old Python) → signed-URL overlay (public link refused) → review → dashboard → audit log. Cross-lab upload,
 anonymous reads and reading the AI key are all refused. PDF service renders PDFs and refuses requests without login.
 
-Not yet covered: password-reset email (no SMTP on staging), AI with a real DeepSeek/OpenAI key, a manual run of
-`backup-job`.
+**Backup (manual run, 2026-10-24):** 172 KB dump + all stored files in `metallurgy-staging-backup`; dump verified
+with `pg_restore --list`. Nightly cron set on the service (next run 02:00 IST).
+
+**AI cross-check (DeepSeek `deepseek-v4-flash-vision-exp`, lab key):** vision call answered in ~4.5 s with
+observations, numeric estimates and caveats; comparison and Retry AI work; the browser only ever sees the key hint.
+Agreement was "low" on the synthetic test image (the AI noted it had no scale bar) — expected; judge accuracy on real
+etched specimens.
+
+Not yet covered: password-reset email (no SMTP on staging), Ring Test AI (not enabled in AI Setting yet).

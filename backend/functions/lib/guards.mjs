@@ -91,3 +91,27 @@ export function clientIp(req) {
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
   return forwarded || req.socket?.remoteAddress || 'unknown'
 }
+
+/**
+ * Retry a fetch-like call when the network fails (service waking from sleep, redeploy, DNS blip).
+ * HTTP error responses are returned as-is; only thrown network errors are retried.
+ * @template T
+ * @param {() => Promise<T>} call
+ * @param {{ attempts?: number, baseMs?: number, sleep?: (ms: number) => Promise<void> }} [opts]
+ * @returns {Promise<T>}
+ */
+export async function retryOnNetworkError(call, { attempts = 5, baseMs = 500, sleep } = {}) {
+  const wait = sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
+  let lastErr
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await call()
+    } catch (err) {
+      // fetch() rejects with TypeError on network failure; timeouts are AbortError/TimeoutError — not retried.
+      if (!(err instanceof TypeError)) throw err
+      lastErr = err
+      if (i < attempts - 1) await wait(baseMs * 2 ** i)
+    }
+  }
+  throw lastErr
+}
