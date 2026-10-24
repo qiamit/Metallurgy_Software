@@ -1,4 +1,5 @@
 import http from 'node:http'
+import crypto from 'node:crypto'
 import {
   loadCv,
   decodeToBgr,
@@ -8,6 +9,7 @@ import {
 } from './lib/analysis.mjs'
 import { resolveAiConfig, runAiAnalysis, compareResults } from './lib/ai.mjs'
 import { analyzeRingImage } from './lib/ringAi.mjs'
+import { clientIp, createGate, createRateLimiter } from './lib/guards.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 const REST_URL = (process.env.REST_URL || 'http://rest.railway.internal:3000').replace(/\/$/, '')
@@ -16,15 +18,51 @@ const STORAGE_URL = (process.env.STORAGE_URL || 'http://storage-api.railway.inte
 const SERVICE_ROLE_KEY = process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+const IS_PROD = process.env.NODE_ENV === 'production'
+const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 20000)
+// A job stuck in "processing" longer than this can be started again (crash / redeploy mid-run).
+const STALE_PROCESSING_MS = Number(process.env.STALE_PROCESSING_MS || 10 * 60 * 1000)
+
+// Fail fast on a misconfigured deploy instead of returning confusing 500s later.
+if (!SERVICE_ROLE_KEY) {
+  console.error('SERVICE_ROLE_KEY is not set')
+  if (IS_PROD) process.exit(1)
+}
+
+// Heavy work (OpenCV + AI) is gated; each replica runs at most ANALYSIS_CONCURRENCY at once.
+const analysisGate = createGate({
+  max: Number(process.env.ANALYSIS_CONCURRENCY || 2),
+  maxQueue: Number(process.env.ANALYSIS_QUEUE || 20),
+})
+
+// Per-IP / per-user limits (in memory, per replica).
+const limits = {
+  register: createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 }),
+  members: createRateLimiter({ limit: 30, windowMs: 60 * 1000 }),
+  analysis: createRateLimiter({ limit: 30, windowMs: 60 * 1000 }),
+  ai: createRateLimiter({ limit: 10, windowMs: 60 * 1000 }),
+}
+
+function enforceLimit(limiter, key) {
+  const { ok, retryAfterSec } = limiter.take(key)
+  if (!ok) {
+    const err = httpError(429, `Too many requests. Try again in ${retryAfterSec}s.`)
+    err.retryAfter = retryAfterSec
+    throw err
+  }
+}
 
 const ROLE_RANK = { viewer: 1, analyst: 2, reviewer: 3, admin: 4, owner: 5 }
 const ROLES = Object.keys(ROLE_RANK)
 
-function json(res, status, body) {
+function json(res, status, body, extraHeaders = {}) {
   const payload = JSON.stringify(body)
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    ...extraHeaders,
   })
   res.end(payload)
 }
@@ -79,6 +117,7 @@ function callerJwt(req) {
 
 async function rest(path, init = {}) {
   const res = await fetch(`${REST_URL}${path}`, {
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     ...init,
     headers: {
       apikey: SERVICE_ROLE_KEY,
@@ -110,6 +149,7 @@ async function restOne(path) {
 
 async function authAdmin(path, init = {}) {
   const res = await fetch(`${AUTH_URL}${path}`, {
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     ...init,
     headers: {
       Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
@@ -150,6 +190,7 @@ function objectUrl(bucket, path) {
 async function downloadObject(bucket, path) {
   const res = await fetch(objectUrl(bucket, path), {
     headers: { Authorization: `Bearer ${SERVICE_ROLE_KEY}`, apikey: SERVICE_ROLE_KEY },
+    signal: AbortSignal.timeout(60000),
   })
   if (!res.ok) throw new Error(`Could not read ${bucket}/${path} (${res.status})`)
   return Buffer.from(await res.arrayBuffer())
@@ -165,6 +206,7 @@ async function uploadObject(bucket, path, body, contentType) {
       'x-upsert': 'true',
     },
     body,
+    signal: AbortSignal.timeout(60000),
   })
   if (!res.ok) throw new Error(`Could not save ${bucket}/${path} (${res.status}): ${(await res.text()).slice(0, 200)}`)
 }
@@ -177,6 +219,7 @@ async function requireUser(req) {
   if (!token) throw httpError(401, 'Missing caller session')
   const res = await fetch(`${AUTH_URL}/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: SERVICE_ROLE_KEY },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
   if (!res.ok) throw httpError(401, 'Invalid caller session')
   const user = await res.json()
@@ -250,6 +293,7 @@ async function createAuthUser({ email, password, fullName }) {
 // Handlers: workspace + members
 // ---------------------------------------------------------------------------
 async function handleRegister(req, res) {
+  enforceLimit(limits.register, clientIp(req))
   const body = await readBody(req)
   const email = cleanEmail(body.email)
   const fullName = String(body.full_name || '').trim()
@@ -286,7 +330,8 @@ async function ownerCount(orgId) {
 async function handleCreateUser(req, res) {
   const body = await readBody(req)
   const orgId = body.organization_id
-  const { role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  const { user: caller, role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  enforceLimit(limits.members, caller.id)
   const email = cleanEmail(body.email)
   const fullName = String(body.full_name || '').trim()
   const role = String(body.role || 'analyst')
@@ -318,7 +363,8 @@ async function loadMembership(orgId, membershipId) {
 async function handleUpdateMember(req, res) {
   const body = await readBody(req)
   const orgId = body.organization_id
-  const { role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  const { user: caller, role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  enforceLimit(limits.members, caller.id)
   const target = await loadMembership(orgId, body.membership_id)
   const nextRole = String(body.role || '')
   assertCanGrant(callerRole, nextRole)
@@ -336,7 +382,8 @@ async function handleUpdateMember(req, res) {
 async function handleRemoveMember(req, res) {
   const body = await readBody(req)
   const orgId = body.organization_id
-  const { role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  const { user: caller, role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  enforceLimit(limits.members, caller.id)
   const target = await loadMembership(orgId, body.membership_id)
   if (ROLE_RANK[target.role] > ROLE_RANK[callerRole]) throw httpError(403, 'You cannot remove this member')
   if (target.role === 'owner' && (await ownerCount(orgId)) <= 1) {
@@ -349,7 +396,8 @@ async function handleRemoveMember(req, res) {
 async function handleResetMemberPassword(req, res) {
   const body = await readBody(req)
   const orgId = body.organization_id
-  const { role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  const { user: caller, role: callerRole } = await requireOrgRole(req, orgId, 'admin')
+  enforceLimit(limits.members, caller.id)
   const target = await loadMembership(orgId, body.membership_id)
   if (ROLE_RANK[target.role] > ROLE_RANK[callerRole]) throw httpError(403, 'You cannot change this member')
   if (!validPassword(body.password)) throw httpError(400, 'Password must be at least 8 characters')
@@ -463,26 +511,45 @@ async function processJob(job, { aiOnly = false } = {}) {
   }
 }
 
+function assertNotRunning(job) {
+  if (job.status !== 'processing') return
+  const since = Date.now() - new Date(job.updated_at).getTime()
+  if (since < STALE_PROCESSING_MS) throw httpError(409, 'Analysis is already running for this job.')
+}
+
+function assertNotSignedOff(job, role) {
+  if ((job.status === 'reviewed' || job.status === 'rejected') && ROLE_RANK[role] < ROLE_RANK.admin) {
+    throw httpError(403, 'This job is already reviewed. Only an admin can re-run it.')
+  }
+}
+
 async function handleAnalyzeJob(req, res) {
   const body = await readBody(req)
   const job = await loadJob(body.job_id)
-  await requireOrgRole(req, job.organization_id, 'analyst')
-  json(res, 200, { job: await processJob(job) })
+  const { user, role } = await requireOrgRole(req, job.organization_id, 'analyst')
+  enforceLimit(limits.analysis, user.id)
+  assertNotRunning(job)
+  assertNotSignedOff(job, role)
+  json(res, 200, { job: await analysisGate.run(() => processJob(job)) })
 }
 
 async function handleRerunAi(req, res) {
   const body = await readBody(req)
   const job = await loadJob(body.job_id)
-  await requireOrgRole(req, job.organization_id, 'analyst')
+  const { user, role } = await requireOrgRole(req, job.organization_id, 'analyst')
+  enforceLimit(limits.ai, user.id)
+  assertNotRunning(job)
+  assertNotSignedOff(job, role)
   const aiOnly = Boolean(job.software_result && job.source_image_path)
   if (!aiOnly) job.run_ai = true
-  json(res, 200, { job: await processJob(job, { aiOnly }) })
+  json(res, 200, { job: await analysisGate.run(() => processJob(job, { aiOnly })) })
 }
 
 async function handleAnalyzeRing(req, res) {
   const body = await readBody(req)
   const orgId = body.organization_id
-  await requireOrgRole(req, orgId, 'analyst')
+  const { user } = await requireOrgRole(req, orgId, 'analyst')
+  enforceLimit(limits.ai, user.id)
   const { row, config } = await labAiConfig(orgId)
   if (!row?.ring_ai_enabled) {
     json(res, 403, { ok: false, error: 'AI ring analysis is not enabled for this lab.' })
@@ -496,11 +563,29 @@ async function handleAnalyzeRing(req, res) {
   const mimeType = /^image\/(png|jpeg|webp)$/.test(String(body.mimeType)) ? body.mimeType : 'image/jpeg'
   if (!imageBase64) throw httpError(400, 'imageBase64 is required')
   try {
-    const guidance = await analyzeRingImage(config, imageBase64, mimeType)
+    const guidance = await analysisGate.run(() => analyzeRingImage(config, imageBase64, mimeType))
     json(res, 200, { ok: true, guidance })
   } catch (err) {
     json(res, 502, { ok: false, error: err instanceof Error ? err.message : 'AI analysis failed.' })
   }
+}
+
+async function handleReady(_req, res) {
+  // Readiness: can we reach PostgREST and GoTrue, and is OpenCV loaded?
+  const checks = {}
+  await Promise.all([
+    fetch(`${REST_URL}/`, { headers: { apikey: SERVICE_ROLE_KEY }, signal: AbortSignal.timeout(3000) })
+      .then((r) => (checks.rest = r.status < 500))
+      .catch(() => (checks.rest = false)),
+    fetch(`${AUTH_URL}/health`, { signal: AbortSignal.timeout(3000) })
+      .then((r) => (checks.auth = r.ok))
+      .catch(() => (checks.auth = false)),
+    loadCv()
+      .then(() => (checks.opencv = true))
+      .catch(() => (checks.opencv = false)),
+  ])
+  const ok = Object.values(checks).every(Boolean)
+  json(res, ok ? 200 : 503, { ok, checks, analysis: analysisGate.stats() })
 }
 
 const routes = {
@@ -508,6 +593,7 @@ const routes = {
     res.writeHead(200, { 'Content-Type': 'text/plain' })
     res.end('ok')
   },
+  'GET /ready': handleReady,
   'POST /register': handleRegister,
   'POST /create-user': handleCreateUser,
   'POST /update-member': handleUpdateMember,
@@ -518,9 +604,27 @@ const routes = {
   'POST /analyze-ring': handleAnalyzeRing,
 }
 
+/** One JSON line per request (no bodies, no tokens) so Railway logs are searchable. */
+function logRequest(entry) {
+  console.log(JSON.stringify({ t: new Date().toISOString(), ...entry }))
+}
+
+let shuttingDown = false
+
 const server = http.createServer(async (req, res) => {
+  const started = Date.now()
+  const requestId = String(req.headers['x-request-id'] || crypto.randomUUID())
+  res.setHeader('X-Request-Id', requestId)
   const url = new URL(req.url || '/', 'http://functions.local')
   const key = `${req.method} ${url.pathname.replace(/\/$/, '') || '/'}`
+  res.on('finish', () => {
+    if (key === 'GET /health') return
+    logRequest({ id: requestId, route: key, status: res.statusCode, ms: Date.now() - started })
+  })
+  if (shuttingDown) {
+    json(res, 503, { error: 'Server is restarting. Please retry.' }, { Connection: 'close' })
+    return
+  }
   const handler = routes[key] || (key === 'GET /' ? routes['GET /health'] : null)
   if (!handler) {
     json(res, 404, { error: 'Not Found' })
@@ -530,13 +634,33 @@ const server = http.createServer(async (req, res) => {
     await handler(req, res)
   } catch (err) {
     const status = Number(err?.statusCode) || 500
-    if (status >= 500) console.error(err)
-    json(res, status, { error: err instanceof Error ? err.message : 'Internal error' })
+    if (status >= 500) {
+      console.error(JSON.stringify({ id: requestId, route: key, error: err instanceof Error ? err.stack : String(err) }))
+    }
+    const headers = err?.retryAfter ? { 'Retry-After': String(err.retryAfter) } : {}
+    // Never leak internal details on 5xx.
+    const message = status >= 500 ? 'Internal error' : err instanceof Error ? err.message : 'Request failed'
+    if (!res.headersSent) json(res, status, { error: message, request_id: requestId }, headers)
   }
 })
+
+// Analysis + AI calls can take ~90 s; keep sockets open long enough.
+server.requestTimeout = 150000
+server.headersTimeout = 20000
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`functions listening on ${PORT}`)
   // Warm the OpenCV runtime so the first analysis is fast.
   loadCv().catch((err) => console.error('OpenCV failed to load', err))
 })
+
+// Graceful shutdown on redeploy: stop taking requests, let running analyses finish.
+function shutdown(signal) {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`${signal} received, draining`)
+  server.close(() => process.exit(0))
+  setTimeout(() => process.exit(0), 120000).unref()
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))

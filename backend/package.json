@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "db:push": "node ./scripts/refuse-hosted-cloud.cjs",
-    "test:db": "node ./supabase/tests/rls.test.mjs"
+    "test:db": "node ./supabase/tests/rls.test.mjs",
+    "db:migrate": "node ./scripts/migrate.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0"
+  },
+  "dependencies": {
+    "pg": "^8.16.0"
   }
 }

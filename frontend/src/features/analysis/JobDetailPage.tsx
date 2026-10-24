@@ -17,7 +17,7 @@ export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const editMode = searchParams.get("edit") === "1";
-  const canAnalyze = hasRole(role, "analyst");
+  const canAnalyzeRole = hasRole(role, "analyst");
   const canReview = hasRole(role, "reviewer");
   const [job, setJob] = useState<AnalysisJob | null>(null);
   const [sampleCode, setSampleCode] = useState("");
@@ -35,6 +35,10 @@ export default function JobDetailPage() {
   const [editCalibration, setEditCalibration] = useState("");
   const [editRunAi, setEditRunAi] = useState(true);
   const [editBusy, setEditBusy] = useState(false);
+
+  // Reviewed / rejected jobs are signed off: only an admin may re-run or edit them (DB enforces too).
+  const signedOff = job?.status === "reviewed" || job?.status === "rejected";
+  const canAnalyze = canAnalyzeRole && (!signedOff || hasRole(role, "admin"));
 
   const applyJob = useCallback(async (data: AnalysisJob) => {
     setJob(data);

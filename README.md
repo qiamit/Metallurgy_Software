@@ -22,9 +22,12 @@ Metallurgy Software/
     ├── gateway/              # Caddy API gateway
     ├── functions/            # Node 22: register, members, OpenCV.js analysis, AI
     ├── pdf-service/          # Playwright HTML → PDF
+    ├── backup-job/           # Nightly Postgres + files backup (Railway cron)
     └── scripts/
 standards/                    # Local standards PDFs (not for redistribution)
 docs/REBUILD_PLAN.md          # Feature inventory and migration notes from the old Next.js/FastAPI app
+docs/SECURITY.md              # Security & safety baseline, required GoTrue settings, known gaps
+docs/OPERATIONS.md            # Releases, health checks, backups/restore, incidents, next steps
 ```
 
 Railway services and setup order: see [backend/README.md](backend/README.md).

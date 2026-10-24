@@ -29,6 +29,8 @@ const u3 = (await q(`INSERT INTO auth.users (email) VALUES ('viewer@a.com') RETU
 const orgA = (await q(`SELECT public.create_organization_with_owner('Acme Metallurgy Lab', $1) AS id`, [u1]))[0].id
 const orgB = (await q(`SELECT public.create_organization_with_owner('Acme Metallurgy Lab', $1) AS id`, [u2]))[0].id
 await q(`INSERT INTO public.memberships (organization_id, user_id, role) VALUES ($1, $2, 'viewer')`, [orgA, u3])
+const u4 = (await q(`INSERT INTO auth.users (email) VALUES ('analyst@a.com') RETURNING id`))[0].id
+await q(`INSERT INTO public.memberships (organization_id, user_id, role) VALUES ($1, $2, 'analyst')`, [orgA, u4])
 console.log('slugs', (await q(`SELECT slug FROM public.organizations ORDER BY created_at`)).map(r => r.slug))
 console.log('settings rows', (await q(`SELECT (SELECT count(*) FROM lab_settings) l, (SELECT count(*) FROM ai_settings) a, (SELECT count(*) FROM ring_test_settings) r`))[0])
 const calB = (await q(`INSERT INTO calibrations (organization_id, name, objective, um_per_px_x, um_per_px_y) VALUES ($1,'10X','10X',0.65,0.65) RETURNING id`, [orgB]))[0].id
@@ -70,8 +72,19 @@ await as(u3, async () => {
   check('viewer reads lab', (await q(`SELECT id FROM samples`)).length === 1)
   check('viewer cannot insert sample', await fails(() => q(`INSERT INTO samples (organization_id, sample_code, created_by) VALUES ($1,'X',$2)`, [orgA, u3])))
   check('viewer cannot review', await fails(async () => { const j = (await q(`SELECT id FROM analysis_jobs`))[0].id; await q(`SELECT review_analysis_job($1,false,'')`, [j]) }))
-  check('viewer sees team profiles', (await q(`SELECT id FROM user_profiles`)).length === 2)
+  check('viewer sees team profiles (owner, viewer, analyst)', (await q(`SELECT id FROM user_profiles`)).length === 3)
   check('viewer cannot update lab settings (0 rows)', (await db.query(`UPDATE lab_settings SET city='X' WHERE organization_id=$1`, [orgA])).affectedRows === 0)
+})
+await as(u4, async () => {
+  const reviewed = (await q(`SELECT id FROM analysis_jobs WHERE status = 'reviewed'`))[0].id
+  await q(`DELETE FROM analysis_jobs WHERE id = $1`, [reviewed])
+  check('analyst cannot delete a reviewed job', (await q(`SELECT id FROM analysis_jobs WHERE id = $1`, [reviewed])).length === 1)
+  const s = (await q(`SELECT id FROM samples LIMIT 1`))[0].id
+  const pending = (await q(`INSERT INTO analysis_jobs (organization_id, sample_id, analysis_type, created_by) VALUES ($1,$2,'micro',$3) RETURNING id`, [orgA, s, u4]))[0].id
+  await q(`DELETE FROM analysis_jobs WHERE id = $1`, [pending])
+  check('analyst can delete a pending job', (await q(`SELECT id FROM analysis_jobs WHERE id = $1`, [pending])).length === 0)
+  check('analyst sees one lab via app_my_org_ids', Number((await q(`SELECT count(*) n FROM app_my_org_ids('viewer')`))[0].n) === 1)
+  check('analyst cannot read audit log', (await q(`SELECT id FROM audit_log`)).length === 0)
 })
 await as(u2, async () => {
   check('other owner cannot see lab A samples', (await q(`SELECT id FROM samples`)).length === 0)

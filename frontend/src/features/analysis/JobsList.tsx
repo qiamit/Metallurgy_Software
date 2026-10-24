@@ -17,6 +17,9 @@ function statusBadge(status: string) {
 export function JobsList({ filters }: { filters?: JobFilters }) {
   const { orgId, role } = useAuth();
   const canEdit = hasRole(role, "analyst");
+  const isAdmin = hasRole(role, "admin");
+  const canChange = (job: AnalysisJob) =>
+    canEdit && (isAdmin || (job.status !== "reviewed" && job.status !== "rejected"));
   const [jobs, setJobs] = useState<AnalysisJob[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
@@ -101,7 +104,12 @@ export function JobsList({ filters }: { filters?: JobFilters }) {
   }
 
   async function deleteSelected() {
-    const targets = jobs.filter((j) => selected.has(j.id));
+    const targets = jobs.filter((j) => selected.has(j.id) && canChange(j));
+    const skipped = selected.size - targets.length;
+    if (skipped > 0 && !targets.length) {
+      setError("Reviewed jobs can only be deleted by an admin.");
+      return;
+    }
     if (!targets.length) return;
     if (!window.confirm(`Delete ${targets.length} analysis job(s)? This cannot be undone.`)) return;
     setDeletingId("bulk");
@@ -187,7 +195,7 @@ export function JobsList({ filters }: { filters?: JobFilters }) {
                       >
                         Open
                       </Link>
-                      {canEdit && (
+                      {canChange(job) && (
                       <Link
                         className="btn btn-ghost px-3 py-1.5 text-xs"
                         to={`/app/jobs/${job.id}?edit=1`}
@@ -195,7 +203,7 @@ export function JobsList({ filters }: { filters?: JobFilters }) {
                         Edit
                       </Link>
                       )}
-                      {canEdit && (
+                      {canChange(job) && (
                       <button
                         className="btn btn-ghost px-3 py-1.5 text-xs text-[var(--danger)] border-[var(--danger)]"
                         disabled={isDeleting}

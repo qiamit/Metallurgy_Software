@@ -4,7 +4,7 @@
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES
   ('job-images', 'job-images', false, 26214400, ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/tiff', 'image/bmp']),
   ('job-overlays', 'job-overlays', false, 26214400, ARRAY['image/png', 'image/jpeg']),
-  ('lab-branding', 'lab-branding', false, 10485760, ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']),
+  ('lab-branding', 'lab-branding', false, 10485760, ARRAY['image/png', 'image/jpeg', 'image/webp']),
   ('ring-test-images', 'ring-test-images', false, 26214400, ARRAY['image/png', 'image/jpeg', 'image/webp'])
 ON CONFLICT (id) DO UPDATE SET
   public = EXCLUDED.public,

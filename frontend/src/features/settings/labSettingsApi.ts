@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient'
 import { objectDataUrl, uploadLabFile, removeLabFiles } from '@/lib/storage'
+import { assertBrandingImage } from '@/lib/validateUpload'
 
 export type LabSettings = {
   organization_id: string
@@ -57,7 +58,7 @@ export async function saveLabSettings(orgId: string, values: Record<LabTextField
 }
 
 export async function uploadBrandingAsset(orgId: string, asset: BrandingAsset, file: File): Promise<LabSettings> {
-  if (!file.type.startsWith('image/')) throw new Error('Please choose an image file')
+  assertBrandingImage(file)
   const current = await fetchLabSettings(orgId)
   const path = await uploadLabFile('lab-branding', orgId, file, `${asset}-`)
   const column = ASSET_COLUMN[asset]

@@ -6,6 +6,7 @@ import { createCalibration, fetchCalibrations } from "@/features/calibrations/ca
 import { createSample, fetchSamples } from "@/features/analysis/samplesApi";
 import { createAndRunJob } from "@/features/analysis/analysisApi";
 import { hasRole } from "@/lib/roles";
+import { assertMicrographUpload } from "@/lib/validateUpload";
 import { useAuth } from "@/hooks/useAuth";
 import {
   drawArrow,
@@ -853,6 +854,13 @@ export default function CapturePage() {
 
   function onUpload(file: File | null) {
     if (!file) return;
+    try {
+      assertMicrographUpload(file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid image");
+      return;
+    }
+    setError("");
     stopCamera();
     setNewSource(file);
   }

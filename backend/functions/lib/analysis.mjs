@@ -40,9 +40,25 @@ function linspaceInt(a, b, n) {
   return out
 }
 
+// Refuse decompression bombs / huge scans before they reach OpenCV (default 50 MP).
+const MAX_IMAGE_PIXELS = Number(process.env.MAX_IMAGE_PIXELS || 50_000_000)
+
 /** Decode any image (png/jpeg/webp/tiff/bmp) into a BGR Mat. Caller deletes it. */
 export async function decodeToBgr(cv, buffer) {
-  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  let decoded
+  try {
+    decoded = await sharp(buffer, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (/pixel limit/i.test(message)) {
+      throw new Error(`Image is too large (over ${Math.round(MAX_IMAGE_PIXELS / 1e6)} megapixels). Please downscale it.`)
+    }
+    throw new Error(`Could not read the image: ${message}`)
+  }
+  const { data, info } = decoded
   const rgba = cv.matFromArray(info.height, info.width, cv.CV_8UC4, data)
   const bgr = new cv.Mat()
   cv.cvtColor(rgba, bgr, cv.COLOR_RGBA2BGR)

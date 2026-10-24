@@ -17,6 +17,7 @@ import {
 import { todayIso, timeNowHHMM } from "@/features/ring-test/utils";
 
 import { saveTest } from "@/features/ring-test/ringTestApi";
+import { assertMicrographUpload } from "@/lib/validateUpload";
 
 interface Style {
   inner: { color: string; width: number };
@@ -178,6 +179,12 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
   ]);
 
   const handleFile = useCallback((file: File) => {
+    try {
+      assertMicrographUpload(file);
+    } catch (err) {
+      setToast({ kind: "err", text: err instanceof Error ? err.message : "Invalid image file." });
+      return;
+    }
     const url = URL.createObjectURL(file);
     const im = new Image();
     im.onload = () => {

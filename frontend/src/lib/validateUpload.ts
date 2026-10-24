@@ -68,4 +68,20 @@ export function assertSignatureImage(file: File): void {
   assertAllowedUpload(file, { extensions: IMAGE_EXTENSIONS, maxBytes: 5 * 1024 * 1024 })
 }
 
-export { DOCUMENT_EXTENSIONS, IMAGE_EXTENSIONS }
+/** Microscope / specimen images the browser can decode for the canvas editors. */
+const MICROGRAPH_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'])
+
+export const MICROGRAPH_MAX_BYTES = 25 * 1024 * 1024
+
+export function assertMicrographUpload(file: File): void {
+  assertAllowedUpload(file, { extensions: MICROGRAPH_EXTENSIONS, maxBytes: MICROGRAPH_MAX_BYTES })
+  if (file.type && !file.type.startsWith('image/')) {
+    throw new Error(`"${file.name}" is not an image.`)
+  }
+}
+
+export function assertBrandingImage(file: File): void {
+  assertAllowedUpload(file, { extensions: new Set(['png', 'jpg', 'jpeg', 'webp']), maxBytes: 10 * 1024 * 1024 })
+}
+
+export { DOCUMENT_EXTENSIONS, IMAGE_EXTENSIONS, MICROGRAPH_EXTENSIONS }

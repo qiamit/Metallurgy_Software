@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # Build-time placeholders only; real values live in Railway variables.
+      VITE_SUPABASE_URL: https://api.example.invalid
+      VITE_SUPABASE_ANON_KEY: ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+        continue-on-error: true # ported pages still use load-in-effect; tracked in docs/SECURITY.md
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+
+  database:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Migrations + RLS rules (PGlite)
+        run: npm run test:db
+
+  functions:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/functions/package-lock.json
+      - run: npm ci
+      - run: node --check server.mjs
+      - name: Unit + OpenCV parity tests
+        run: npm test
+      - run: npm audit --omit=dev --audit-level=high
+
+  pdf-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/pdf-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check server.mjs
+      - run: npm audit --omit=dev --audit-level=high --package-lock-only
+
+  gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Caddyfile
+        run: |
+          docker run --rm -v "$PWD/backend/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -e GOTRUE_UPSTREAM=http://auth:9999 -e PGRST_UPSTREAM=http://rest:3000 \
+            -e STORAGE_UPSTREAM=http://storage:8080 -e FUNCTIONS_UPSTREAM=http://functions:8080 \
+            caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

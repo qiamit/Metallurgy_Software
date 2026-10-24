@@ -13,6 +13,7 @@ The browser talks to the `api` gateway with `supabase-js` (a protocol client onl
 | `Postgres` | `ghcr.io/railwayapp-templates/postgres-ssl:18` + volume | `postgres.railway.internal:5432` |
 | `functions` | repo, root `backend/functions` (Node 22: register, members, OpenCV analysis, AI) | `functions.railway.internal:8080` |
 | `pdf-service` | repo, root `backend/pdf-service` (Playwright HTML → PDF) | public URL |
+| `backup-job` | repo, root `backend/backup-job` (cron 02:00 IST: pg_dump + files → backup bucket) | – |
 
 Removed from the old stack: FastAPI, Redis + RQ worker (never used), MinIO.
 
@@ -31,24 +32,33 @@ Removed from the old stack: FastAPI, Redis + RQ worker (never used), MinIO.
 4. **storage-api** — `DATABASE_URL` (as `postgres`), `PGRST_JWT_SECRET`/`AUTH_JWT_SECRET`, `ANON_KEY`, `SERVICE_KEY`,
    `POSTGREST_URL=http://rest.railway.internal:3000`, `STORAGE_BACKEND=s3`, `GLOBAL_S3_BUCKET`, `GLOBAL_S3_ENDPOINT`,
    `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `REGION=auto`, `TENANT_ID=stub`, `FILE_SIZE_LIMIT=52428800`.
-5. Run the remaining migrations in order (they need the `auth` and `storage` schemas from steps 3–4):
+5. Run the remaining migrations (they need the `auth` and `storage` schemas from steps 3–4). The runner
+   applies pending files in order, one transaction each, and records them in `public.schema_migrations`:
    ```bash
-   psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 -f supabase/migrations/<file>.sql
+   DATABASE_URL=<railway postgres url> npm run db:migrate --prefix backend -- --dry-run
+   DATABASE_URL=<railway postgres url> npm run db:migrate --prefix backend
    ```
+   (If you applied step 1 by hand, the runner will see it as pending; it is safe to re-run.)
 6. **rest** (PostgREST) — `PGRST_DB_URI` (as `authenticator`), `PGRST_DB_SCHEMAS=public`, `PGRST_DB_ANON_ROLE=anon`,
    `PGRST_JWT_SECRET`, `PGRST_DB_MAX_ROWS=10000`.
-7. **functions** — `AUTH_URL`, `REST_URL`, `STORAGE_URL=http://storage-api.railway.internal:8080`, `SERVICE_ROLE_KEY`,
-   optional `OPENAI_API_KEY` / `OPENAI_MODEL` (server-wide fallback when a lab has no AI key).
+7. **functions** — `NODE_ENV=production`, `AUTH_URL`, `REST_URL`, `STORAGE_URL=http://storage-api.railway.internal:8080`,
+   `SERVICE_ROLE_KEY`, optional `OPENAI_API_KEY` / `OPENAI_MODEL` (server-wide fallback when a lab has no AI key).
+   Tuning: `ANALYSIS_CONCURRENCY`, `ANALYSIS_QUEUE`, `MAX_IMAGE_PIXELS` (see `docs/OPERATIONS.md`).
 8. **api** (Caddy) — `GOTRUE_UPSTREAM`, `PGRST_UPSTREAM`, `STORAGE_UPSTREAM`, `FUNCTIONS_UPSTREAM`,
    `FRONTEND_ORIGIN` (and optional `FRONTEND_ORIGIN_ALT`) for CORS.
 9. **pdf-service** — `AUTH_URL`, `AUTH_ANON_KEY`, `PDF_ALLOWED_ORIGINS=https://<frontend-domain>`.
 10. **frontend** — `VITE_SUPABASE_URL=https://<api-domain>`, `VITE_SUPABASE_ANON_KEY`, `VITE_PDF_SERVICE_URL`.
+11. **backup-job** — `DATABASE_URL`, `SOURCE_S3_*` (media bucket), `BACKUP_S3_*` (a second bucket), optional
+    `BACKUP_RETENTION_DAYS`.
+
+Security settings for GoTrue and the rest of the baseline: `docs/SECURITY.md`. Releases, health checks,
+restore and incidents: `docs/OPERATIONS.md`.
 
 ## Tests
 
 ```bash
-npm install --prefix backend && npm run test:db --prefix backend          # migrations + RLS (PGlite)
-npm install --prefix backend/functions && npm test --prefix backend/functions  # OpenCV.js parity with the old Python
+npm install --prefix backend && npm run test:db --prefix backend          # migrations + 27 RLS checks (PGlite)
+npm install --prefix backend/functions && npm test --prefix backend/functions  # guards + OpenCV.js parity with the old Python
 ```
 
 ## Rules
