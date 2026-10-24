@@ -980,7 +980,9 @@ export function RingEditor(props: RingEditorProps) {
         ctx.fillStyle = "#ffffff";
         ctx.strokeStyle = "rgba(0,0,0,0.7)";
         ctx.lineWidth = 3;
-        const txt = p.thickness_mm !== null ? `${p.label}  ${p.thickness_mm.toFixed(3)} mm` : p.label;
+        // Without a mm/px scale the pairs are computed at 1 mm/px, so the number is pixels.
+        const unit = mmPerPx > 0 ? "mm" : "px";
+        const txt = p.thickness_mm !== null ? `${p.label}  ${p.thickness_mm.toFixed(mmPerPx > 0 ? 3 : 1)} ${unit}` : p.label;
         // Offset label outward from centre
         const cx = outer ? outer.cx * scale : W / 2;
         const cy = outer ? outer.cy * scale : H / 2;

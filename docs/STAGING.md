@@ -36,4 +36,11 @@ observations, numeric estimates and caveats; comparison and Retry AI work; the b
 Agreement was "low" on the synthetic test image (the AI noted it had no scale bar) — expected; judge accuracy on real
 etched specimens.
 
-Not yet covered: password-reset email (no SMTP on staging), Ring Test AI (not enabled in AI Setting yet).
+**Ring Test AI (same DeepSeek key, `ring_ai_enabled` on):** on a synthetic 600×600 ring with 12 lugs the AI found the
+centre exactly (0.50, 0.50), inner radius 0.185 vs 0.183 drawn (~1%), outer 0.363 vs 0.383 (~5%), confidence 0.95,
+the 8 fixed IS 1786 thickness angles, and correctly reported no ruler scale (~2.9 s). In the editor the AI button drew
+both rings, two diameters and t1–t8. The endpoint refuses callers without login (401) and other labs (403), and returns
+"not enabled" until an admin turns it on. Fixes from this test: a whole-ring (≥300°) "exclude sector" from the AI is now
+ignored, and t1–t8 overlay labels say **px** until a mm/px scale is set (they used to show pixels with an "mm" unit).
+
+Not yet covered: password-reset email (no SMTP on staging), Ring Test AI on real specimen photos with a ruler.

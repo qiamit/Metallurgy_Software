@@ -208,6 +208,8 @@ export function parseAiRingGuidance(raw: unknown): AiRingGuidance {
     for (const s of o.excludeSectors) {
       if (!s || typeof s !== "object") continue;
       const sec = s as Record<string, unknown>;
+      // A sector covering (almost) the whole ring says nothing useful and would block every diameter.
+      if (Math.abs(num(sec.endDeg) - num(sec.startDeg)) >= 300) continue;
       excludeSectors.push({
         startDeg: num(sec.startDeg),
         endDeg: num(sec.endDeg),
