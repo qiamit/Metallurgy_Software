@@ -17,23 +17,33 @@ The browser talks to the `api` gateway with `supabase-js` (a protocol client onl
 
 Removed from the old stack: FastAPI, Redis + RQ worker (never used), MinIO.
 
+All internal Postgres URLs use `?sslmode=disable` over the private network. In the Metallurgy Railway project the
+old services keep the names `api` and `Postgres`, so the new stack uses `gateway` and `Postgres-xxxx` there.
+A live example of this exact setup is the `staging` environment (`docs/STAGING.md`).
+
 ## First-time setup order
 
 1. **Postgres** — create it, then run `supabase/migrations/20261024000000_bootstrap_roles.sql` and set
    `ALTER ROLE authenticator WITH PASSWORD '…';`
 2. **Secrets** — one HS256 `JWT_SECRET`. Sign two JWTs with it: `ANON_KEY` (`{"role":"anon"}`) and
    `SERVICE_ROLE_KEY` (`{"role":"service_role"}`).
-3. **auth** (GoTrue) — `GOTRUE_DB_DATABASE_URL` (as `postgres`), `GOTRUE_DB_NAMESPACE=auth`,
-   `GOTRUE_DB_AUTOMIGRATE=true` for the first boot, `GOTRUE_JWT_SECRET`, `GOTRUE_JWT_AUD=authenticated`,
+3. **auth** (GoTrue) — first run `CREATE SCHEMA IF NOT EXISTS auth;`, then set
+   `GOTRUE_DB_DATABASE_URL=postgresql://postgres:…@<pg>.railway.internal:5432/railway?sslmode=disable&search_path=auth`
+   (the `search_path` keeps GoTrue's own `schema_migrations` table inside `auth`), `GOTRUE_DB_NAMESPACE=auth`,
+   `GOTRUE_DB_AUTOMIGRATE=true`, `GOTRUE_JWT_SECRET`, `GOTRUE_JWT_AUD=authenticated`,
    `GOTRUE_JWT_ADMIN_ROLES=service_role`, `API_EXTERNAL_URL=https://<api-domain>/auth/v1`,
    `GOTRUE_SITE_URL=https://<frontend-domain>`, `GOTRUE_URI_ALLOW_LIST=https://<frontend-domain>/reset-password`,
    `GOTRUE_DISABLE_SIGNUP=true` (labs register through `functions /register`), `GOTRUE_MAILER_AUTOCONFIRM=true`,
-   SMTP (`GOTRUE_SMTP_*`) for password-reset emails.
-4. **storage-api** — `DATABASE_URL` (as `postgres`), `PGRST_JWT_SECRET`/`AUTH_JWT_SECRET`, `ANON_KEY`, `SERVICE_KEY`,
+   `GOTRUE_PASSWORD_MIN_LENGTH=8` (matches the app), SMTP (`GOTRUE_SMTP_*`) for password-reset emails.
+4. **storage-api** — first boot with `DATABASE_URL` as `postgres` so it creates the `storage` schema. Also
+   `DATABASE_SEARCH_PATH=storage,public`, `PGRST_JWT_SECRET`/`AUTH_JWT_SECRET`, `ANON_KEY`, `SERVICE_KEY`,
    `POSTGREST_URL=http://rest.railway.internal:3000`, `STORAGE_BACKEND=s3`, `GLOBAL_S3_BUCKET`, `GLOBAL_S3_ENDPOINT`,
-   `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `REGION=auto`, `TENANT_ID=stub`, `FILE_SIZE_LIMIT=52428800`.
+   `GLOBAL_S3_FORCE_PATH_STYLE=false` (Railway buckets are virtual-host), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+   `REGION=auto`, `TENANT_ID=stub`, `FILE_SIZE_LIMIT=52428800`.
+   After step 5, set `ALTER ROLE supabase_storage_admin WITH PASSWORD '…';` and switch storage-api's
+   `DATABASE_URL` to that role — storage-api relies on the login role's `search_path=storage`.
 5. Run the remaining migrations (they need the `auth` and `storage` schemas from steps 3–4). The runner
-   applies pending files in order, one transaction each, and records them in `public.schema_migrations`:
+   applies pending files in order, one transaction each, and records them in `public.app_schema_migrations`:
    ```bash
    DATABASE_URL=<railway postgres url> npm run db:migrate --prefix backend -- --dry-run
    DATABASE_URL=<railway postgres url> npm run db:migrate --prefix backend

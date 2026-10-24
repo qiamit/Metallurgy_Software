@@ -81,6 +81,12 @@ jobs:
         with:
           node-version: 22
       - run: node --check server.mjs
+      - name: Playwright version matches the Docker image
+        run: |
+          image=$(sed -n 's#^FROM mcr.microsoft.com/playwright:v\([0-9.]*\)-.*#\1#p' Dockerfile)
+          locked=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")
+          echo "image=$image locked=$locked"
+          test "$image" = "$locked"
       - run: npm audit --omit=dev --audit-level=high --package-lock-only
 
   gateway:

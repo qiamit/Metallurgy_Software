@@ -1,5 +1,6 @@
 // Apply pending SQL migrations to Railway Postgres, in filename order, one transaction each.
-// Tracks applied files (with a checksum) in public.schema_migrations.
+// Tracks applied files (with a checksum) in public.app_schema_migrations
+// (not `schema_migrations`: GoTrue and other tools own tables with that name).
 //
 //   DATABASE_URL=postgres://... npm run db:migrate --prefix backend            # apply pending
 //   DATABASE_URL=postgres://... npm run db:migrate --prefix backend -- --dry-run
@@ -37,13 +38,13 @@ const client = new pg.Client({
 })
 await client.connect()
 try {
-  await client.query(`CREATE TABLE IF NOT EXISTS public.schema_migrations (
+  await client.query(`CREATE TABLE IF NOT EXISTS public.app_schema_migrations (
     filename text PRIMARY KEY,
     checksum text NOT NULL,
     applied_at timestamptz NOT NULL DEFAULT now()
   )`)
-  await client.query('REVOKE ALL ON public.schema_migrations FROM PUBLIC')
-  const { rows } = await client.query('SELECT filename, checksum FROM public.schema_migrations')
+  await client.query('REVOKE ALL ON public.app_schema_migrations FROM PUBLIC')
+  const { rows } = await client.query('SELECT filename, checksum FROM public.app_schema_migrations')
   const applied = new Map(rows.map((r) => [r.filename, r.checksum]))
 
   let failed = false
@@ -64,14 +65,14 @@ try {
       continue
     }
     if (baseline) {
-      await client.query('INSERT INTO public.schema_migrations (filename, checksum) VALUES ($1, $2)', [file, sum])
+      await client.query('INSERT INTO public.app_schema_migrations (filename, checksum) VALUES ($1, $2)', [file, sum])
       console.log(`BASELINE ${file}`)
       continue
     }
     try {
       await client.query('BEGIN')
       await client.query(sql)
-      await client.query('INSERT INTO public.schema_migrations (filename, checksum) VALUES ($1, $2)', [file, sum])
+      await client.query('INSERT INTO public.app_schema_migrations (filename, checksum) VALUES ($1, $2)', [file, sum])
       await client.query('COMMIT')
       console.log(`APPLIED  ${file}`)
     } catch (err) {
