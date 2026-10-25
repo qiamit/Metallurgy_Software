@@ -17,7 +17,10 @@ export function buildRingCertificateHtml(record: RingTestRecord, branding: LabBr
     ["Test Date / Time", `${record.test_date} ${record.test_time}`],
   ];
   const thickness = (r?.thickness_measurements ?? [])
-    .map((t) => `<tr><td>${esc(t.label)}</td><td>${esc(t.angle_deg)}</td><td>${f(t.thickness_mm, 3)}</td></tr>`)
+    .map(
+      (t) =>
+        `<tr><td>${esc(t.label)}</td><td>${esc(t.rib_core ? `${t.angle_deg} (core)` : t.rib_shift_deg ? `${t.angle_deg + t.rib_shift_deg}` : t.angle_deg)}</td><td>${f(t.thickness_mm, 3)}${t.uncertain ? " *" : ""}</td></tr>`,
+    )
     .join("");
   const body = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -44,10 +47,34 @@ export function buildRingCertificateHtml(record: RingTestRecord, branding: LabBr
         <tr><td style="width:150px"><b>TM Area:</b></td><td>${f(r.area_tm_mm2, 2)} mm²</td></tr>
         <tr><td><b>F&amp;P Area:</b></td><td>${f(r.area_fp_mm2, 2)} mm²</td></tr>
         <tr><td><b>TM Fraction:</b></td><td>${f(r.tm_area_fraction_percent, 1)}% (required 30–50%)</td></tr>
-      </table>`
+      </table>
+      ${
+        r.equivalent_diameter_mm != null
+          ? `<h2>Geometry</h2>
+      <table class="meta">
+        <tr><td style="width:150px"><b>Measured / Equivalent Ø:</b></td><td>${f(r.measured_diameter_mm, 2)} / ${f(r.equivalent_diameter_mm, 2)} mm</td></tr>
+        <tr><td><b>Concentricity:</b></td><td>${f(r.concentricity_mm, 3)} mm</td></tr>
+        <tr><td><b>Thickness Spread:</b></td><td>${f(r.thickness_spread_mm, 3)} mm</td></tr>
+      </table>
+      ${(r.warnings ?? []).length ? `<p style="font-size:9px;color:#92400e">${(r.warnings ?? []).map(esc).join("<br/>")}</p>` : ""}`
+          : ""
+      }`
         : ""
     }
     ${record.observations ? `<h2>Observations</h2><p style="white-space:pre-wrap">${esc(record.observations)}</p>` : ""}
-    ${imageDataUrl ? `<h2>Annotated Image</h2><img src="${imageDataUrl}" alt="" style="max-width:100%;max-height:110mm;border:1px solid #c5d0d4" />` : ""}`;
+    ${
+      imageDataUrl
+        ? `<h2>Annotated Image</h2><img src="${imageDataUrl}" alt="" style="max-width:100%;max-height:110mm;border:1px solid #c5d0d4" />
+      <div style="display:flex;gap:12px;font-size:9px;margin-top:3px">${[
+        ["#f472b6", "Outer"],
+        ["#fde047", "Inner"],
+        ["#fb923c", "Diameter"],
+        ["#4ade80", "Thickness"],
+        ["#ef4444", "Low-contrast edge"],
+      ]
+        .map(([c, l]) => `<span><i style="display:inline-block;width:8px;height:8px;background:${c};margin-right:3px"></i>${l}</span>`)
+        .join("")}</div>`
+        : ""
+    }`;
   return wrapLabReport(branding, `Ring Test ${record.id}`, body);
 }

@@ -4,12 +4,29 @@ import {
   type Circle,
   type DiameterBox,
   type RingResult,
+  type ThicknessPair,
   T_LABELS,
   analyseRing,
   computeThicknessPairs,
   suggestInitialCircles,
 } from "@/features/ring-test/analysis";
 import { detectInnerRingFromImage, detectOuterRingFromImage } from "@/features/ring-test/analysis/detect-ring";
+import {
+  edgeScoreAt,
+  grayContrast,
+  grayFromRgba,
+  refineRing,
+  ribAwareRay,
+  ribFreeDiameters,
+  ribProfile,
+  scaleShape,
+  shapeArea,
+  shapeCentroid,
+  type GrayImage,
+  type RibMode,
+  type RibProfile,
+  type RingShape,
+} from "@/features/ring-test/analysis/ring-geometry";
 import type { EditorGeometryDraft } from "@/features/ring-test/draft";
 
 export type EditMode = "inner" | "outer" | "diam" | "mmpx" | "thick" | "view";
@@ -233,6 +250,13 @@ export function RingEditor(props: RingEditorProps) {
   const [thicknessDeltaPx, setThicknessDeltaPx] = useState<number[]>(
     () => initialGeometry?.thicknessDeltaPx ?? Array.from({ length: 8 }, () => 0),
   );
+
+  const [ribMode, setRibMode] = useState<RibMode>("shift");
+  const [autoBusy, setAutoBusy] = useState(false);
+  const [autoStatus, setAutoStatus] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  /** Full-resolution (≤ 2400 px) grey copy of the image for sub-pixel edges and edge scores. */
+  const grayRef = useRef<{ img: GrayImage; k: number; contrast: number } | null>(null);
+  const [grayVersion, setGrayVersion] = useState(0);
 
   const skipNextImageResetRef = useRef(Boolean(initialGeometry && imageSrc));
   const prevImageSrcRef = useRef<string | null>(imageSrc);
@@ -513,6 +537,7 @@ export function RingEditor(props: RingEditorProps) {
   useEffect(() => {
     if (!imageSrc) {
       imageRef.current = null;
+      grayRef.current = null;
       setImgReady(false);
       return;
     }
@@ -520,6 +545,8 @@ export function RingEditor(props: RingEditorProps) {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       imageRef.current = img;
+      grayRef.current = buildGray(img);
+      setGrayVersion((v) => v + 1);
       setImgReady(true);
     };
     img.src = imageSrc;
@@ -662,7 +689,15 @@ export function RingEditor(props: RingEditorProps) {
     });
   }, [inner, outer, sampleDiameterMm, mmPerPx, angularCorrectionDeg]);
 
-  const thicknessPairsDisplay = useMemo(() => {
+  const innerRingShape = useMemo<RingShape | null>(() => (inner ? { circle: inner, ...ensurePointOffsets(innerShape) } : null), [inner, innerShape]);
+  const outerRingShape = useMemo<RingShape | null>(() => (outer ? { circle: outer, ...ensurePointOffsets(outerShape) } : null), [outer, outerShape]);
+  /** Outer boundary seen from the ray origin: core outline and rib positions. */
+  const ribProf = useMemo<RibProfile | null>(
+    () => (outerRingShape && outerRingShape.mode === "polygon" ? ribProfile(outerRingShape, outerRingShape.circle.cx, outerRingShape.circle.cy) : null),
+    [outerRingShape],
+  );
+
+  const thicknessPairsRaw = useMemo(() => {
     if (!inner || !outer) return [];
     const mmForPairs = mmPerPx > 0 ? mmPerPx : 1;
     return computeAdjustedThicknessPairs({
@@ -676,19 +711,58 @@ export function RingEditor(props: RingEditorProps) {
       thicknessDeltaPx,
       outerGapPx: thicknessOuterGapPx,
       innerGapPx: thicknessInnerGapPx,
+      ribProfile: ribProf,
+      ribMode,
     });
-  }, [inner, outer, innerShape, outerShape, mmPerPx, angularCorrectionDeg, thicknessAngleOffsetsDeg, thicknessDeltaPx, thicknessOuterGapPx, thicknessInnerGapPx]);
+  }, [inner, outer, innerShape, outerShape, mmPerPx, angularCorrectionDeg, thicknessAngleOffsetsDeg, thicknessDeltaPx, thicknessOuterGapPx, thicknessInnerGapPx, ribProf, ribMode]);
+
+  // Edge sharpness at every measured point; weak edges are flagged for the operator.
+  const thicknessPairsDisplay = useMemo<ThicknessPair[]>(() => {
+    const g = grayRef.current;
+    if (!g || thicknessPairsRaw.length === 0) return thicknessPairsRaw;
+    const scored = thicknessPairsRaw.map((p) => {
+      if (p.thickness_mm === null) return { ...p, edge_score: { inner: null, outer: null } };
+      const ang = Math.atan2(p.outer_xy[1] - p.inner_xy[1], p.outer_xy[0] - p.inner_xy[0]);
+      const at = (xy: [number, number]) => edgeScoreAt(g.img, xy[0] * g.k, xy[1] * g.k, ang, g.contrast);
+      return { ...p, edge_score: { inner: at(p.inner_xy), outer: p.rib_core ? null : at(p.outer_xy) } };
+    });
+    const all = scored
+      .flatMap((p) => [p.edge_score.inner, p.edge_score.outer])
+      .filter((v): v is number => v !== null)
+      .sort((a, b) => a - b);
+    const med = all.length ? all[Math.floor(all.length / 2)]! : 0;
+    // weak = far below the typical edge of this image (or no edge at all), i.e. probably misplaced
+    const weak = (v: number | null) => v !== null && (v < 1.2 || v < med * 0.35);
+    return scored.map((p) => ({ ...p, uncertain: weak(p.edge_score.inner) || weak(p.edge_score.outer) }));
+    // grayVersion: rescore when the grey image is rebuilt
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thicknessPairsRaw, grayVersion]);
+
+  /** Length (px) of the scale line mm/px came from, when one is drawn. */
+  const calibLenPx = useMemo(() => {
+    const line = calibLine ?? (selectedCalibLine !== null ? calibLines[selectedCalibLine] : calibLines[calibLines.length - 1] ?? null);
+    return line && Number(calibRefMm) > 0 ? Math.hypot(line.x2 - line.x1, line.y2 - line.y1) : null;
+  }, [calibLine, calibLines, selectedCalibLine, calibRefMm]);
 
   const effectiveResult = useMemo<RingResult | null>(() => {
-    if (!result) return null;
-    if (thicknessPairsDisplay.length !== 8) return result;
-    const diameterMmFromLines =
-      diamLines.length > 0 && mmPerPx > 0
-        ? (diamLines.reduce((sum, l) => sum + Math.hypot(l.x2 - l.x1, l.y2 - l.y1), 0) / diamLines.length) *
-          mmPerPx
+    if (!result || !innerRingShape || !outerRingShape || thicknessPairsDisplay.length !== 8) return result;
+    // Areas from the traced outlines (polygon when ribs / ovality), not from the guide circles.
+    const outerA = shapeArea(outerRingShape);
+    const innerA = Math.min(shapeArea(innerRingShape), outerA);
+    const mm2 = mmPerPx * mmPerPx;
+    const areaTM = (outerA - innerA) * mm2;
+    const areaFP = innerA * mm2;
+    const tmShare = outerA > 0 ? ((outerA - innerA) / outerA) * 100 : 0;
+    const tmShareInRange = tmShare >= 30 && tmShare <= 50;
+    const measuredDiameterMm =
+      diamLines.length > 0
+        ? (diamLines.reduce((sum, l) => sum + Math.hypot(l.x2 - l.x1, l.y2 - l.y1), 0) / diamLines.length) * mmPerPx
         : null;
-    const lowLimit = diameterMmFromLines !== null ? diameterMmFromLines * 0.07 : result.thicknessLow;
-    const highLimit = diameterMmFromLines !== null ? diameterMmFromLines * 0.15 : result.thicknessHigh;
+    const equivalentDiameterMm = 2 * Math.sqrt(outerA / Math.PI) * mmPerPx;
+    // Limits follow the nominal bar size (0.07d – 0.15d); measured sizes are reported alongside.
+    const nominal = sampleDiameterMm && sampleDiameterMm > 0 ? sampleDiameterMm : (measuredDiameterMm ?? equivalentDiameterMm);
+    const lowLimit = nominal * 0.07;
+    const highLimit = nominal * 0.15;
     const valid = thicknessPairsDisplay
       .map((p) => p.thickness_mm)
       .filter((v): v is number => v !== null && Number.isFinite(v));
@@ -696,6 +770,24 @@ export function RingEditor(props: RingEditorProps) {
     const thicknessMax = valid.length ? Math.max(...valid) : null;
     const thicknessMean = valid.length ? valid.reduce((s, v) => s + v, 0) / valid.length : null;
     const thicknessInRange = valid.length === 8 && valid.every((v) => v >= lowLimit && v <= highLimit);
+    const ci = shapeCentroid(innerRingShape);
+    const co = shapeCentroid(outerRingShape);
+    const uncertainPoints = thicknessPairsDisplay.filter((p) => p.uncertain).map((p) => p.label);
+    const ribAdjustments = thicknessPairsDisplay
+      .filter((p) => p.rib_shift_deg || p.rib_core)
+      .map((p) => (p.rib_core ? `${p.label}: core outline` : `${p.label}: ${p.rib_shift_deg! > 0 ? "+" : ""}${p.rib_shift_deg}°`));
+    const warnings: string[] = [];
+    if (Math.max(imageWidth, imageHeight) < 1000) {
+      warnings.push(`Image is ${imageWidth} × ${imageHeight} px — capture at ≥ 1000 px for better accuracy.`);
+    }
+    if (calibLenPx !== null && calibLenPx < 300) {
+      warnings.push(`Scale line is only ${calibLenPx.toFixed(0)} px — draw it over a longer reference (≥ 300 px).`);
+    }
+    const measured = measuredDiameterMm ?? equivalentDiameterMm;
+    if (sampleDiameterMm && sampleDiameterMm > 0 && Math.abs(measured / sampleDiameterMm - 1) > 0.05) {
+      warnings.push(`Measured diameter ${measured.toFixed(2)} mm differs from nominal ${sampleDiameterMm} mm by more than 5 % — check mm/px.`);
+    }
+    if (uncertainPoints.length) warnings.push(`Low-contrast edge at ${uncertainPoints.join(", ")} — check these points.`);
     return {
       ...result,
       thicknessPairs: thicknessPairsDisplay,
@@ -705,18 +797,31 @@ export function RingEditor(props: RingEditorProps) {
       thicknessLow: lowLimit,
       thicknessHigh: highLimit,
       thicknessInRange,
-      overallPass: thicknessInRange && result.tmShareInRange,
+      areaTM,
+      areaFP,
+      tmShare,
+      tmShareInRange,
+      overallPass: thicknessInRange && tmShareInRange,
+      nominalDiameterMm: nominal,
+      measuredDiameterMm,
+      equivalentDiameterMm,
+      concentricityMm: Math.hypot(ci.x - co.x, ci.y - co.y) * mmPerPx,
+      thicknessSpreadMm: thicknessMin !== null && thicknessMax !== null ? thicknessMax - thicknessMin : null,
+      uncertainPoints,
+      ribAdjustments,
+      ribMode,
+      warnings,
     };
-  }, [result, thicknessPairsDisplay, diamLines, mmPerPx]);
+  }, [result, innerRingShape, outerRingShape, thicknessPairsDisplay, diamLines, mmPerPx, sampleDiameterMm, imageWidth, imageHeight, calibLenPx, ribMode]);
 
   useEffect(() => {
     onResult?.(effectiveResult);
   }, [effectiveResult, onResult]);
 
   useEffect(() => {
-    const fpAreaPx2 = inner ? Math.PI * inner.r * inner.r : null;
+    const fpAreaPx2 = innerRingShape ? shapeArea(innerRingShape) : null;
     const tmAreaPx2 =
-      inner && outer ? Math.max(0, Math.PI * (outer.r * outer.r - inner.r * inner.r)) : null;
+      innerRingShape && outerRingShape ? Math.max(0, shapeArea(outerRingShape) - shapeArea(innerRingShape)) : null;
     const totalAreaPx2 =
       fpAreaPx2 !== null && tmAreaPx2 !== null ? fpAreaPx2 + tmAreaPx2 : fpAreaPx2;
     const tmAreaPercent =
@@ -743,7 +848,7 @@ export function RingEditor(props: RingEditorProps) {
       diameterAverageMm,
       thicknessEnabled: thicknessApplied && !!inner && !!outer,
     });
-  }, [mmPerPx, effectiveResult, onMetricsChange, inner, outer, diamLines, thicknessApplied]);
+  }, [mmPerPx, effectiveResult, onMetricsChange, inner, outer, innerRingShape, outerRingShape, diamLines, thicknessApplied]);
 
   // Fit canvas to the visible window/container (default on upload + resize).
   const updateScale = useCallback(() => {
@@ -953,7 +1058,8 @@ export function RingEditor(props: RingEditorProps) {
         ctx.moveTo(ix, iy);
         ctx.lineTo(ox, oy);
         ctx.stroke();
-        const r = Math.max(3, style.thick.width + 2);
+        const r = Math.max(2.5, style.thick.width + 1.5);
+        ctx.fillStyle = p.uncertain ? "#ef4444" : style.thick.color;
         ctx.beginPath();
         ctx.arc(ix, iy, r, 0, Math.PI * 2);
         ctx.fill();
@@ -1391,6 +1497,20 @@ export function RingEditor(props: RingEditorProps) {
     setInnerShape((prev) => ensurePointOffsets(prev));
   }, [inner, imageWidth, imageHeight, closeAllRightPanels]);
 
+  /** Refine a coarse detection at full resolution (sub-pixel); null when the grey image is unavailable. */
+  const refineShape = useCallback(
+    (coarse: RingShape, kind: "inner" | "outer", center: { x: number; y: number } | null = null): RingShape | null => {
+      const g = grayRef.current;
+      if (!g) return null;
+      const res = refineRing(g.img, scaleShape(coarse, g.k), kind, {
+        sides: kind === "outer" ? 120 : 72,
+        center: center ? { x: center.x * g.k, y: center.y * g.k } : null,
+      });
+      return res ? scaleShape(res.shape, 1 / g.k) : null;
+    },
+    [],
+  );
+
   const autoDetectInnerRing = useCallback(() => {
     if (!imageRef.current || !imgReady || imageWidth <= 0 || imageHeight <= 0) {
       return;
@@ -1408,16 +1528,9 @@ export function RingEditor(props: RingEditorProps) {
             : { cx: imageWidth / 2, cy: imageHeight / 2 },
         });
         if (!result.ok) return;
-        const { shape } = result;
+        const shape = refineShape(result.shape, "inner", outer ? { x: outer.cx, y: outer.cy } : null) ?? result.shape;
         setInner(shape.circle);
-        setInnerShape(
-          ensurePointOffsets({
-            mode: shape.mode,
-            sides: shape.sides,
-            rotationDeg: shape.rotationDeg,
-            pointOffsets: shape.pointOffsets,
-          }),
-        );
+        setInnerShape(toShapeConfig(shape));
         setSelectedPolyPoint(null);
         setSelectedPolyEdges([]);
       } catch {
@@ -1426,7 +1539,7 @@ export function RingEditor(props: RingEditorProps) {
         setDetectingInner(false);
       }
     });
-  }, [imgReady, imageWidth, imageHeight, outer]);
+  }, [imgReady, imageWidth, imageHeight, outer, refineShape]);
 
   const openOuterAdjust = useCallback(() => {
     if (!outer && imageWidth > 0 && imageHeight > 0) {
@@ -1481,16 +1594,9 @@ export function RingEditor(props: RingEditorProps) {
             : { cx: imageWidth / 2, cy: imageHeight / 2 },
         });
         if (!result.ok) return;
-        const { shape } = result;
+        const shape = refineShape(result.shape, "outer") ?? result.shape;
         setOuter(shape.circle);
-        setOuterShape(
-          ensurePointOffsets({
-            mode: shape.mode,
-            sides: shape.sides,
-            rotationDeg: shape.rotationDeg,
-            pointOffsets: shape.pointOffsets,
-          }),
-        );
+        setOuterShape(toShapeConfig(shape));
         setSelectedOuterPolyPoint(null);
         setSelectedOuterPolyEdges([]);
       } catch {
@@ -1499,7 +1605,76 @@ export function RingEditor(props: RingEditorProps) {
         setDetectingOuter(false);
       }
     });
-  }, [imgReady, imageWidth, imageHeight, inner]);
+  }, [imgReady, imageWidth, imageHeight, inner, refineShape]);
+
+  /**
+   * One click: outer ring → inner ring (both refined to sub-pixel at full resolution) →
+   * two perpendicular diameters → eight thickness points. Everything stays editable.
+   */
+  const autoAnalyse = useCallback(() => {
+    if (!imageRef.current || !imgReady || imageWidth <= 0 || imageHeight <= 0) return;
+    setAutoBusy(true);
+    setAutoStatus(null);
+    requestAnimationFrame(() => {
+      try {
+        const src = imageRef.current!;
+        const size = { sourceWidth: imageWidth, sourceHeight: imageHeight };
+        const mid = { cx: imageWidth / 2, cy: imageHeight / 2 };
+        const innerA = detectInnerRingFromImage(src, { ...size, polygonSides: 36, seedCenter: mid });
+        const seed = innerA.ok ? innerA.shape.circle : null;
+        const outerRes = detectOuterRingFromImage(src, {
+          ...size,
+          inner: seed,
+          polygonSides: 48,
+          circleTolerance: 0.025,
+          maxWorkingSize: 520,
+          seedCenter: seed ? { cx: seed.cx, cy: seed.cy } : mid,
+        });
+        if (!outerRes.ok) {
+          setAutoStatus({ kind: "err", text: `Outer ring not found — ${outerRes.reason}` });
+          return;
+        }
+        const outerR = refineShape(outerRes.shape, "outer") ?? outerRes.shape;
+        const oc = outerR.circle;
+        const innerB = detectInnerRingFromImage(src, {
+          ...size,
+          polygonSides: 36,
+          outer: oc,
+          seedCenter: { cx: oc.cx, cy: oc.cy },
+          expectedRadius: seed?.r ?? null,
+        });
+        const innerCoarse = innerB.ok ? innerB.shape : innerA.ok ? innerA.shape : null;
+        const outerConf = toShapeConfig(outerR);
+        setOuter(oc);
+        setOuterShape(outerConf);
+        setDiamLine(null);
+        setDiamLines(ribFreeDiameterLines({ circle: oc, ...outerConf }));
+        setSelectedDiamLine(null);
+        if (!innerCoarse) {
+          setAutoStatus({ kind: "err", text: "Inner ring not found — place it with Inner Ring." });
+          return;
+        }
+        const innerR = refineShape(innerCoarse, "inner", { x: oc.cx, y: oc.cy }) ?? innerCoarse;
+        setInner(innerR.circle);
+        setInnerShape(toShapeConfig(innerR));
+        setThicknessAngleOffsetsDeg(Array.from({ length: 8 }, () => 0));
+        setThicknessDeltaPx(Array.from({ length: 8 }, () => 0));
+        setSelectedThicknessKey("none");
+        setSelectedPolyPoint(null);
+        setSelectedOuterPolyPoint(null);
+        setSelectedPolyEdges([]);
+        setSelectedOuterPolyEdges([]);
+        setThicknessApplied(true);
+        closeAllRightPanels();
+        setMode("view");
+        setAutoStatus({ kind: "ok", text: "Rings, diameters and thickness points placed — check and adjust." });
+      } catch {
+        setAutoStatus({ kind: "err", text: "Auto analysis failed — place the rings manually." });
+      } finally {
+        setAutoBusy(false);
+      }
+    });
+  }, [imgReady, imageWidth, imageHeight, refineShape, closeAllRightPanels]);
 
   const toggleImageAdjust = useCallback(() => {
     if (isImageAdjustOpen) {
@@ -1671,6 +1846,12 @@ export function RingEditor(props: RingEditorProps) {
 
   /** Draw two perpendicular diameters through outer (or inner) ring centre. */
   const autoDrawPerpendicularDiameters = useCallback(() => {
+    if (outerRingShape && outerRingShape.mode === "polygon") {
+      setDiamLine(null);
+      setDiamLines(ribFreeDiameterLines(outerRingShape));
+      setSelectedDiamLine(0);
+      return;
+    }
     const ring = outer ?? inner;
     if (!ring) return;
     const shape = outer ? outerShape : innerShape;
@@ -1680,7 +1861,7 @@ export function RingEditor(props: RingEditorProps) {
     setDiamLine(null);
     setDiamLines([horizontal, vertical]);
     setSelectedDiamLine(0);
-  }, [outer, inner, outerShape, innerShape]);
+  }, [outer, inner, outerShape, innerShape, outerRingShape]);
 
   /** Rotate diameters around ring centre, then re-clamp to outer/inner edge. */
   const rotateDiameterLines = useCallback(
@@ -1859,6 +2040,16 @@ export function RingEditor(props: RingEditorProps) {
           {!hideHeaderToolsInSidebar ? extraControls : null}
           <button
             type="button"
+            onClick={autoAnalyse}
+            disabled={!imgReady || autoBusy}
+            className="inline-flex items-center gap-2 rounded-lg border-2 border-emerald-400 bg-emerald-500/20 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Detect outer and inner rings, draw diameters and thickness points"
+          >
+            <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
+            {autoBusy ? "Analysing…" : "Auto Analyse"}
+          </button>
+          <button
+            type="button"
             onClick={toggleImageAdjust}
             aria-pressed={isImageAdjustOpen}
             className={
@@ -1910,6 +2101,18 @@ export function RingEditor(props: RingEditorProps) {
             Reset Drawing
           </button>
         </nav>
+        {autoStatus ? (
+          <p className={`mt-2 px-1 text-[11px] leading-snug ${autoStatus.kind === "ok" ? "text-emerald-300" : "text-red-300"}`}>
+            {autoStatus.text}
+          </p>
+        ) : null}
+        {effectiveResult?.warnings?.length ? (
+          <ul className="mt-2 space-y-1 px-1 text-[11px] leading-snug text-amber-200">
+            {effectiveResult.warnings.map((w) => (
+              <li key={w}>• {w}</li>
+            ))}
+          </ul>
+        ) : null}
       </aside>
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-2">
@@ -2186,6 +2389,21 @@ export function RingEditor(props: RingEditorProps) {
                       <p className="text-xs font-medium text-[--color-muted]">Points</p>
                       <div className="text-xs text-slate-300">{thicknessPairsDisplay.length} points active</div>
                     </div>
+                    <label className="block space-y-1 text-center">
+                      <span className="text-xs font-medium text-[--color-muted]">Ribs</span>
+                      <select
+                        className="input w-full text-xs"
+                        value={ribMode}
+                        onChange={(e) => setRibMode(e.target.value as RibMode)}
+                      >
+                        <option value="shift">Avoid Rib (±10°)</option>
+                        <option value="core">Measure to Core</option>
+                        <option value="include">Include Rib</option>
+                      </select>
+                    </label>
+                    {effectiveResult?.ribAdjustments?.length ? (
+                      <p className="text-[11px] text-slate-300">{effectiveResult.ribAdjustments.join(" · ")}</p>
+                    ) : null}
                     <div className="space-y-2 text-center">
                       <div className="grid grid-cols-5 overflow-hidden rounded-md border border-[--color-border-strong] text-xs">
                         {(["none", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "all"] as const).map((key) => {
@@ -2314,14 +2532,14 @@ export function RingEditor(props: RingEditorProps) {
                       <input
                         type="number"
                         min={3}
-                        max={64}
+                        max={120}
                         value={mode === "outer" ? outerShape.sides : innerShape.sides}
                         onChange={(e) => {
                           const next = Number(e.target.value);
                           (mode === "outer" ? setOuterShape : setInnerShape)((prev) =>
                             ensurePointOffsets({
                               ...prev,
-                              sides: Number.isFinite(next) ? Math.min(64, Math.max(3, Math.round(next))) : prev.sides,
+                              sides: Number.isFinite(next) ? Math.min(120, Math.max(3, Math.round(next))) : prev.sides,
                             }),
                           );
                         }}
@@ -2649,6 +2867,54 @@ function FilterRow({
   );
 }
 
+const GRAY_MAX_SIDE = 2400;
+
+/** Grey working copy of the image (≤ 2400 px long side); k = grey px per image px. */
+function buildGray(img: HTMLImageElement): { img: GrayImage; k: number; contrast: number } | null {
+  const k = Math.min(1, GRAY_MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * k));
+  const h = Math.max(1, Math.round(img.naturalHeight * k));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  try {
+    ctx.drawImage(img, 0, 0, w, h);
+    const g = grayFromRgba(ctx.getImageData(0, 0, w, h).data, w, h);
+    return { img: g, k: w / img.naturalWidth, contrast: grayContrast(g) };
+  } catch {
+    return null;
+  }
+}
+
+/** Two perpendicular diameters through the outer centre that avoid ribs (core outline when unavoidable). */
+function ribFreeDiameterLines(outer: RingShape): DiameterLine[] {
+  const { cx, cy } = outer.circle;
+  const prof = outer.mode === "polygon" ? ribProfile(outer, cx, cy) : null;
+  if (!prof) {
+    const conf = toShapeConfig(outer);
+    return [diameterLineThroughRing(outer.circle, conf, 0), diameterLineThroughRing(outer.circle, conf, 90)];
+  }
+  const { ends } = ribFreeDiameters(prof);
+  const pt = (e: { deg: number; r: number }) => {
+    const t = (e.deg * Math.PI) / 180;
+    return { x: cx + Math.cos(t) * e.r, y: cy + Math.sin(t) * e.r };
+  };
+  return [
+    [ends[2]!, ends[0]!],
+    [ends[3]!, ends[1]!],
+  ].map(([a, b]) => {
+    const p1 = pt(a);
+    const p2 = pt(b);
+    return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+  });
+}
+
+function toShapeConfig(s: RingShape): InnerShapeConfig {
+  return ensurePointOffsets({ mode: s.mode, sides: s.sides, rotationDeg: s.rotationDeg, pointOffsets: s.pointOffsets });
+}
+
 function clampNum(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
@@ -2753,7 +3019,9 @@ function computeAdjustedThicknessPairs(args: {
   thicknessDeltaPx: number[];
   outerGapPx: number;
   innerGapPx: number;
-}) {
+  ribProfile: RibProfile | null;
+  ribMode: RibMode;
+}): ThicknessPair[] {
   const {
     inner,
     outer,
@@ -2765,17 +3033,21 @@ function computeAdjustedThicknessPairs(args: {
     thicknessDeltaPx,
     outerGapPx,
     innerGapPx,
+    ribProfile: ribProf,
+    ribMode,
   } = args;
   const cx = outer.cx;
   const cy = outer.cy;
   const innerPoly = innerShape.mode === "polygon" ? getPolygonPoints(inner, innerShape) : null;
   const outerPoly = outerShape.mode === "polygon" ? getPolygonPoints(outer, outerShape) : null;
   return T_LABELS.map(({ angle, label }, idx) => {
-    const a = (angle + angularOffsetDeg + (angleOffsetsDeg[idx] ?? 0)) * (Math.PI / 180);
+    // Rib-aware: turn off a rib (≤ 10°) or measure to the core outline, per ribMode.
+    const ray = ribAwareRay(ribProf, angle + angularOffsetDeg + (angleOffsetsDeg[idx] ?? 0), ribMode);
+    const a = ray.angleDeg * (Math.PI / 180);
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const innerR = solveRayShapeDistance(cx, cy, cos, sin, inner, innerPoly);
-    const outerR = solveRayShapeDistance(cx, cy, cos, sin, outer, outerPoly);
+    const outerR = ray.usedCore && ray.outerR !== null ? ray.outerR : solveRayShapeDistance(cx, cy, cos, sin, outer, outerPoly);
     if (innerR === null || outerR === null || outerR <= innerR + 1) {
       return { label, angle_deg: angle, inner_xy: [cx, cy] as [number, number], outer_xy: [cx, cy] as [number, number], thickness_mm: null };
     }
@@ -2795,6 +3067,8 @@ function computeAdjustedThicknessPairs(args: {
       inner_xy: [ix, iy] as [number, number],
       outer_xy: [ox, oy] as [number, number],
       thickness_mm: thickPx * mmPerPx,
+      rib_shift_deg: ray.shifted,
+      rib_core: ray.usedCore,
     };
   });
 }

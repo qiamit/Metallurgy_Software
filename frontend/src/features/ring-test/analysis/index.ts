@@ -24,6 +24,14 @@ export interface ThicknessPair {
   inner_xy: [number, number];
   outer_xy: [number, number];
   thickness_mm: number | null;
+  /** Degrees the ray was turned to avoid a rib (rib-aware mode). */
+  rib_shift_deg?: number;
+  /** Measured to the core (rib-free) outline instead of the rib surface. */
+  rib_core?: boolean;
+  /** Edge sharpness at the inner / outer point (% of image contrast per px). */
+  edge_score?: { inner: number | null; outer: number | null };
+  /** Edge too weak to trust — check this point. */
+  uncertain?: boolean;
 }
 
 export const T_LABELS: Array<{ angle: number; label: string }> = [
@@ -50,6 +58,19 @@ export interface RingResult {
   tmShare: number;
   tmShareInRange: boolean;
   overallPass: boolean;
+  nominalDiameterMm?: number | null;
+  /** Mean of the drawn diameter lines. */
+  measuredDiameterMm?: number | null;
+  /** Diameter of the circle with the outer outline's area. */
+  equivalentDiameterMm?: number | null;
+  /** Distance between the inner and outer area centroids. */
+  concentricityMm?: number | null;
+  /** Max − min thickness. */
+  thicknessSpreadMm?: number | null;
+  uncertainPoints?: string[];
+  ribAdjustments?: string[];
+  ribMode?: string;
+  warnings?: string[];
 }
 
 /**

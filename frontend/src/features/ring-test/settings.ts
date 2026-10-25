@@ -22,8 +22,8 @@ export type RingSettings = {
 export const DEFAULT_RING_SETTINGS: RingSettings = {
   mm_per_px_override: null,
   angular_correction_deg: 0,
-  thickness_outer_gap_px: 1,
-  thickness_inner_gap_px: 1,
+  thickness_outer_gap_px: 0,
+  thickness_inner_gap_px: 0,
   inner_color: "#fde047",
   outer_color: "#f472b6",
   diam_color: "#fb923c",

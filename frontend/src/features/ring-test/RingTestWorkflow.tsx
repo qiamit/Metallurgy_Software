@@ -297,6 +297,9 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
         thickness_mm: p.thickness_mm,
         inner_xy: p.inner_xy,
         outer_xy: p.outer_xy,
+        rib_shift_deg: p.rib_shift_deg ?? 0,
+        rib_core: p.rib_core ?? false,
+        uncertain: p.uncertain ?? false,
       })),
       thickness_min_mm: result.thicknessMin,
       thickness_max_mm: result.thicknessMax,
@@ -310,6 +313,13 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
       tm_area_share_in_range: result.tmShareInRange,
       overall_pass: result.overallPass,
       observations: effectiveObservations,
+      nominal_diameter_mm: result.nominalDiameterMm ?? null,
+      measured_diameter_mm: result.measuredDiameterMm ?? null,
+      equivalent_diameter_mm: result.equivalentDiameterMm ?? null,
+      concentricity_mm: result.concentricityMm ?? null,
+      thickness_spread_mm: result.thicknessSpreadMm ?? null,
+      rib_mode: result.ribMode,
+      warnings: result.warnings ?? [],
     };
 
     startTransition(async () => {
@@ -712,19 +722,34 @@ function ResultsPanel({
 }) {
   const areaToMm2 = (areaPx2: number | null) =>
     areaPx2 !== null && editorMetrics.mmPerPx > 0 ? areaPx2 * editorMetrics.mmPerPx * editorMetrics.mmPerPx : null;
-  const effectiveDiameterMm = editorMetrics.diameterAverageMm ?? editorMetrics.diameterSingleMm;
-  const reqLowMm = effectiveDiameterMm !== null ? effectiveDiameterMm * 0.07 : null;
-  const reqHighMm = effectiveDiameterMm !== null ? effectiveDiameterMm * 0.15 : null;
+  const mm = (v: number | null | undefined, d = 3) => (v != null && Number.isFinite(v) ? `${v.toFixed(d)} mm` : "----");
   const designationOrder = ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"];
   const sortedPairs = result
     ? [...result.thicknessPairs].sort(
         (a, b) => designationOrder.indexOf(a.label.toLowerCase()) - designationOrder.indexOf(b.label.toLowerCase()),
       )
-    : Array.from({ length: 8 }, (_, i) => ({ label: `t${i + 1}`, angle_deg: i * 45, thickness_mm: null }));
+    : Array.from({ length: 8 }, (_, i) => ({ label: `t${i + 1}`, angle_deg: i * 45, thickness_mm: null, uncertain: false, rib_shift_deg: 0, rib_core: false }));
   const showThickness = !!result && editorMetrics.thicknessEnabled;
+  const inRange = (v: number | null) =>
+    v !== null && result ? v >= result.thicknessLow && v <= result.thicknessHigh : true;
+  const rows: Array<[string, string]> = [
+    ["Minimum", showThickness ? mm(result?.thicknessMin) : "----"],
+    ["Maximum", showThickness ? mm(result?.thicknessMax) : "----"],
+    ["Average", showThickness ? mm(result?.thicknessMean) : "----"],
+    ["Spread (Max − Min)", showThickness ? mm(result?.thicknessSpreadMm) : "----"],
+    ["Total Area", areaToMm2(editorMetrics.totalAreaPx2) !== null ? `${areaToMm2(editorMetrics.totalAreaPx2)!.toFixed(2)} mm²` : "----"],
+    ["F&P Area", areaToMm2(editorMetrics.fpAreaPx2) !== null ? `${areaToMm2(editorMetrics.fpAreaPx2)!.toFixed(2)} mm²` : "----"],
+    ["TM Area", areaToMm2(editorMetrics.tmAreaPx2) !== null ? `${areaToMm2(editorMetrics.tmAreaPx2)!.toFixed(2)} mm²` : "----"],
+    ["TM Area %", editorMetrics.tmAreaPercent !== null ? `${editorMetrics.tmAreaPercent.toFixed(2)} %` : "----"],
+    ["Nominal Ø", mm(result?.nominalDiameterMm, 2)],
+    ["Measured Ø", mm(result?.measuredDiameterMm, 2)],
+    ["Equivalent Ø", mm(result?.equivalentDiameterMm, 2)],
+    ["Concentricity", mm(result?.concentricityMm)],
+    ["mm/px", editorMetrics.mmPerPx > 0 ? editorMetrics.mmPerPx.toFixed(5) : "----"],
+  ];
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white">Analysis</h3>
         <span
           className={
@@ -738,77 +763,57 @@ function ResultsPanel({
           {!result || !editorMetrics.thicknessEnabled ? "IN-PROGRESS" : result.overallPass ? "PASS" : "FAIL"}
         </span>
       </div>
-      <div className="overflow-hidden rounded-lg border border-[--color-border] text-xs">
-        <div className="grid grid-cols-[25%_25%_50%] bg-slate-800/60 text-center font-semibold text-slate-200">
-          <div className="border-r border-[--color-border] p-2">Thickness Designation</div>
-          <div className="border-r border-[--color-border] p-2">Results in mm</div>
-          <div className="p-2"></div>
-        </div>
-        <div className="grid grid-cols-[25%_25%_50%]">
-          <div className="border-r border-[--color-border]">
+      <div className="grid gap-3 text-xs sm:grid-cols-2">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-slate-800/60 text-slate-200">
+              <th className="border border-[--color-border] p-1.5 text-center">Point</th>
+              <th className="border border-[--color-border] p-1.5 text-center">Thickness</th>
+              <th className="border border-[--color-border] p-1.5 text-center">Ray</th>
+            </tr>
+          </thead>
+          <tbody>
             {sortedPairs.map((p) => (
-              <div key={p.label} className="border-t border-[--color-border] px-2 py-1 text-slate-200">
-                {p.label.toUpperCase()}
-              </div>
+              <tr key={p.label} className={p.uncertain ? "text-red-300" : "text-slate-100"}>
+                <td className="border border-[--color-border] px-2 py-1 text-center">{p.label.toUpperCase()}</td>
+                <td
+                  className={`border border-[--color-border] px-2 py-1 text-center font-mono ${
+                    showThickness && !inRange(p.thickness_mm) ? "text-red-300" : ""
+                  }`}
+                >
+                  {showThickness && p.thickness_mm !== null ? p.thickness_mm.toFixed(3) : "----"}
+                </td>
+                <td className="border border-[--color-border] px-2 py-1 text-center text-slate-400">
+                  {p.rib_core ? "core" : p.rib_shift_deg ? `${p.angle_deg + p.rib_shift_deg}°` : `${p.angle_deg}°`}
+                  {p.uncertain ? " · check" : ""}
+                </td>
+              </tr>
             ))}
-          </div>
-          <div className="border-r border-[--color-border]">
-            {sortedPairs.map((p) => (
-              <div key={`${p.label}-v`} className="border-t border-[--color-border] px-2 py-1 font-mono text-slate-100">
-                {showThickness && p.thickness_mm !== null ? p.thickness_mm.toFixed(4) : "----"}
-              </div>
+          </tbody>
+        </table>
+        <table className="w-full border-collapse">
+          <tbody>
+            {rows.map(([k, v]) => (
+              <tr key={k}>
+                <td className="border border-[--color-border] px-2 py-1 text-slate-400">{k}</td>
+                <td className="border border-[--color-border] px-2 py-1 text-center font-mono text-slate-100">{v}</td>
+              </tr>
             ))}
-          </div>
-          <div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              Minimum: {showThickness && result?.thicknessMin !== null ? result.thicknessMin.toFixed(4) : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              Maximum: {showThickness && result?.thicknessMax !== null ? result.thicknessMax.toFixed(4) : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              Average: {showThickness && result?.thicknessMean !== null ? result.thicknessMean.toFixed(4) : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              Total Area: {areaToMm2(editorMetrics.totalAreaPx2) !== null ? `${areaToMm2(editorMetrics.totalAreaPx2)!.toFixed(2)} mm²` : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              F&amp;P Area: {areaToMm2(editorMetrics.fpAreaPx2) !== null ? `${areaToMm2(editorMetrics.fpAreaPx2)!.toFixed(2)} mm²` : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              TM Area: {areaToMm2(editorMetrics.tmAreaPx2) !== null ? `${areaToMm2(editorMetrics.tmAreaPx2)!.toFixed(2)} mm²` : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              TM Area %: {editorMetrics.tmAreaPercent !== null ? `${editorMetrics.tmAreaPercent.toFixed(2)}%` : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              mm/px: {editorMetrics.mmPerPx > 0 ? editorMetrics.mmPerPx.toFixed(4) : "----"}
-            </div>
-            <div className="border-t border-[--color-border] px-2 py-1">
-              Diameter: {editorMetrics.diameterLineCount === 0
-                ? "----"
-                : editorMetrics.diameterLineCount === 1
-                  ? editorMetrics.diameterSingleMm !== null
-                    ? `${editorMetrics.diameterSingleMm.toFixed(2)} mm`
-                    : editorMetrics.diameterSinglePx !== null
-                      ? `${editorMetrics.diameterSinglePx.toFixed(1)} px`
-                      : "----"
-                  : editorMetrics.diameterAverageMm !== null
-                    ? `${editorMetrics.diameterAverageMm.toFixed(2)} mm (avg)`
-                    : editorMetrics.diameterAveragePx !== null
-                      ? `${editorMetrics.diameterAveragePx.toFixed(1)} px (avg)`
-                      : "----"}
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-[--color-border] bg-slate-900/40 px-2 py-1 text-center text-slate-300">
-          Requirement of Thickness (
-          {reqLowMm !== null && reqHighMm !== null
-            ? `${reqLowMm.toFixed(3)} mm - ${reqHighMm.toFixed(3)} mm`
-            : "---- - ----"}
-          ) &amp; TM Area (30% - 50%)
-        </div>
+          </tbody>
+        </table>
       </div>
+      <div className="border border-[--color-border] bg-slate-900/40 px-2 py-1.5 text-center text-xs text-slate-300">
+        Requirement: Thickness{" "}
+        {result ? `${result.thicknessLow.toFixed(3)} – ${result.thicknessHigh.toFixed(3)} mm (0.07d – 0.15d)` : "----"} · TM
+        Area 30 – 50 %
+      </div>
+      {result?.warnings?.length ? (
+        <ul className="space-y-1 border-l-4 border-amber-400 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          {result.warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

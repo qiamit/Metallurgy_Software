@@ -150,6 +150,8 @@ export default function RingTestReportDetailPage() {
                         </td>
                         <td className="border border-[var(--rt-border)] px-2 py-1 font-mono print:border-slate-300">
                           {t.thickness_mm != null ? t.thickness_mm.toFixed(3) : "—"}
+                          {t.rib_core ? " (core)" : t.rib_shift_deg ? ` (at ${t.angle_deg + t.rib_shift_deg}°)` : ""}
+                          {t.uncertain ? " · low-contrast edge" : ""}
                         </td>
                       </tr>
                     ))}
@@ -200,6 +202,36 @@ export default function RingTestReportDetailPage() {
                 </div>
               </div>
             </section>
+
+            {(r.equivalent_diameter_mm != null || r.concentricity_mm != null) && (
+              <section>
+                <h2 className="mb-2 border-b border-blue-500/30 pb-1 text-sm font-bold uppercase tracking-wide text-blue-300 print:text-blue-800">
+                  Geometry
+                </h2>
+                <div className="grid gap-3 text-sm sm:grid-cols-3">
+                  {(
+                    [
+                      ["Measured Ø", r.measured_diameter_mm, 2],
+                      ["Equivalent Ø", r.equivalent_diameter_mm, 2],
+                      ["Concentricity", r.concentricity_mm, 3],
+                      ["Thickness Spread", r.thickness_spread_mm, 3],
+                    ] as const
+                  ).map(([k, v, d]) => (
+                    <div key={k}>
+                      <div className="text-xs font-bold uppercase text-[var(--rt-muted)]">{k}</div>
+                      <div className="font-semibold">{v != null ? `${v.toFixed(d)} mm` : "—"}</div>
+                    </div>
+                  ))}
+                </div>
+                {r.warnings?.length ? (
+                  <ul className="mt-2 list-disc pl-5 text-xs text-amber-300 print:text-amber-800">
+                    {r.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+            )}
           </>
         )}
 

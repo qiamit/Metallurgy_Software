@@ -8,6 +8,9 @@ export interface ThicknessMeasurement {
   thickness_mm: number | null;
   inner_xy: [number, number] | null;
   outer_xy: [number, number] | null;
+  rib_shift_deg?: number;
+  rib_core?: boolean;
+  uncertain?: boolean;
 }
 
 export interface AnalysisResults {
@@ -29,6 +32,13 @@ export interface AnalysisResults {
   tm_area_share_in_range: boolean | null;
   overall_pass: boolean | null;
   observations?: string;
+  nominal_diameter_mm?: number | null;
+  measured_diameter_mm?: number | null;
+  equivalent_diameter_mm?: number | null;
+  concentricity_mm?: number | null;
+  thickness_spread_mm?: number | null;
+  rib_mode?: string;
+  warnings?: string[];
 }
 
 export interface RingTestRecord {
