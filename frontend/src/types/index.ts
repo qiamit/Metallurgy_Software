@@ -1,6 +1,6 @@
 export type Role = 'owner' | 'admin' | 'analyst' | 'reviewer' | 'viewer'
 
-export type AnalysisType = 'grain_size' | 'micro' | 'macro' | 'inclusion' | 'decarb'
+export type AnalysisType = 'grain_size' | 'micro' | 'macro' | 'inclusion' | 'decarb' | 'nodularity' | 'graphite_flake'
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'reviewed' | 'rejected'
 
@@ -67,4 +67,6 @@ export const ANALYSIS_LABELS: Record<AnalysisType, string> = {
   macro: 'Macro Analysis (IS 10138)',
   inclusion: 'Inclusion Rating (ISO 4967)',
   decarb: 'Decarburization (ISO 3887)',
+  nodularity: 'Nodularity — SG Iron (ISO 945 / A247)',
+  graphite_flake: 'Graphite Flakes — Grey Iron (A247)',
 }

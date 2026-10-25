@@ -33,6 +33,15 @@ const PROMPTS = {
     'Assess macroscopic inclusions per IS 10138. Return JSON with keys: ' +
     'stringer_count (int), total_length_mm (number), confidence (0-1), ' +
     'observations (string), caveats (string).',
+  nodularity:
+    'You are a cast iron metallographer. Rate this spheroidal graphite iron micrograph per ISO 945 / ASTM A247 / E2567. ' +
+    'Return JSON with keys: nodularity_percent (number 0-100), nodule_count_per_mm2 (number), ' +
+    'nodule_size_class_a247 (integer 1-8), graphite_form (string, A247 Type I-VII), confidence (0-1), ' +
+    'observations (string), caveats (string).',
+  graphite_flake:
+    'You are a cast iron metallographer. Rate this grey iron micrograph per ASTM A247 / ISO 945-1. ' +
+    'Return JSON with keys: flake_size_class (integer 1-8), graphite_type (string, one of A, B, C, D, E), ' +
+    'graphite_area_percent (number), confidence (0-1), observations (string), caveats (string).',
 }
 
 const DEEPSEEK_VISION_MODEL = 'deepseek-v4-flash-vision-exp'
@@ -211,6 +220,8 @@ const COMPARE_KEYS = {
   decarb: ['decarb_depth_um'],
   micro: ['light_phase_fraction', 'dark_phase_fraction'],
   macro: ['stringer_count', 'total_length_mm'],
+  nodularity: ['nodularity_percent', 'nodule_count_per_mm2', 'nodule_size_class_a247'],
+  graphite_flake: ['flake_size_class', 'graphite_area_percent'],
 }
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v)

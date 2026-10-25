@@ -8,6 +8,8 @@ import {
   CapturePage,
   DashboardPage,
   ElementPage,
+  HardnessConversionPage,
+  PhaseDiagramPage,
   JobDetailPage,
   LandingPage,
   LoginPage,
@@ -45,6 +47,8 @@ export default function App() {
             <Route path="ring-test/reports/:id" element={<RingTestReportPage />} />
             <Route path="ring-test/settings" element={<RingTestSettingsPage />} />
             <Route path="ring-test/help" element={<RingTestHelpPage />} />
+            <Route path="hardness" element={<HardnessConversionPage />} />
+            <Route path="phase-diagram" element={<PhaseDiagramPage />} />
             <Route path="periodic-table" element={<PeriodicTablePage />} />
             <Route path="periodic-table/element/:symbol" element={<ElementPage />} />
             <Route path="*" element={<Navigate to="/app" replace />} />

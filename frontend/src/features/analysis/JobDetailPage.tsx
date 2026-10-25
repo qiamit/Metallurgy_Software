@@ -11,6 +11,7 @@ import { fetchJob, rerunAi, reviewJob, updateJobAndRerun } from "@/features/anal
 import { fetchCalibrations } from "@/features/calibrations/calibrationsApi";
 import { loadLabBranding } from "@/features/settings/labSettingsApi";
 import { buildJobReportHtml } from "@/features/analysis/buildJobReportHtml";
+import { ResultExtras } from "@/features/analysis/ResultExtras";
 
 export default function JobDetailPage() {
   const { orgId, role } = useAuth();
@@ -313,6 +314,7 @@ export default function JobDetailPage() {
               ),
             )}
           </dl>
+          <ResultExtras job={job} />
         </div>
 
         <div className="card p-5">

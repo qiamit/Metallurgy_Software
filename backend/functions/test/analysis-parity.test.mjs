@@ -1,4 +1,7 @@
 // Parity with the old Python/OpenCV API: same JSON and pixel-identical overlays.
+// Grain size and inclusion are excluded: replaced by chart-calibrated methods (test/grain-size.test.mjs,
+// test/inclusion.test.mjs,
+// docs/CHART_CALIBRATION.md) because the old one read ~1.5 G (intercept) / ~4 G (planimetric) high.
 // Fixtures were produced by test/fixtures/generate_python_expected.py against the old
 // FastAPI apps/api (removed in this rewrite; see git history).
 import { test } from 'node:test'
@@ -16,7 +19,9 @@ async function rawRgb(buffer) {
   return sharp(buffer).removeAlpha().raw().toBuffer()
 }
 
-for (const [type, analyze] of Object.entries(ANALYZERS)) {
+const STILL_PARITY = ['decarb', 'micro', 'macro']
+
+for (const [type, analyze] of Object.entries(ANALYZERS).filter(([t]) => STILL_PARITY.includes(t))) {
   test(`${type} matches Python result and overlay`, async () => {
     const { cv } = await loadCv()
     const image = await decodeToBgr(cv, fs.readFileSync(path.join(dir, `${type}.png`)))

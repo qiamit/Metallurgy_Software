@@ -17,14 +17,14 @@ function AnalysisContent() {
 
   const details: Record<AnalysisType, { standard: string; description: string }> = {
     grain_size: {
-      standard: "ISO 643:2019",
+      standard: "ASTM E112-13 / ISO 643:2019",
       description:
-        "Micrographic Determination of Apparent Grain Size Using Intercept and Planimetric Estimates With Boundary Overlays.",
+        "Heyn Lineal Intercept (Primary) and Jeffries Planimetric Grain Size With Duplex Check (ASTM E1181). Calibrated on ASTM E112 Plates I-B and IV.",
     },
     inclusion: {
-      standard: "ISO 4967:1998",
+      standard: "ISO 4967:2013 / ASTM E45 Method A",
       description:
-        "Non-Metallic Inclusion Rating via Particle Segmentation and Type A/B/C/D/DS Heuristics Compared to Chart Indices.",
+        "JK Chart Rating per 0.50 mm² Field: Types A, B, C, D Thin / Heavy and DS, Using the E45 Plate I-r Severity Limits.",
     },
     decarb: {
       standard: "ISO 3887:2017",
@@ -34,12 +34,22 @@ function AnalysisContent() {
     micro: {
       standard: "Micro Analysis",
       description:
-        "Field Microstructure Statistics Including Light/Dark Phase Area Fractions.",
+        "Light/Dark Phase Area Fractions, With a Lever-Rule Carbon Estimate for Slowly Cooled Ferrite–Pearlite Steel.",
     },
     macro: {
       standard: "IS 10138:2010",
       description:
         "Macroscopic Methods for Non-Metallic Inclusion Stringers ≥ 1 mm in Wrought Steels.",
+    },
+    nodularity: {
+      standard: "ISO 945-4 / ASTM E2567 / A247",
+      description:
+        "Spheroidal Graphite Iron: Nodularity %, Nodule Count per mm² and A247 Nodule Size Class From Particle Roundness.",
+    },
+    graphite_flake: {
+      standard: "ASTM A247 / ISO 945-1",
+      description:
+        "Grey Iron: Graphite Flake Size Class From the Longest Flakes, Graphite Area % and a Graphite Type Hint (A–E).",
     },
   };
 

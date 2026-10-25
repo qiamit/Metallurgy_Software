@@ -1,4 +1,4 @@
-import { Atom, Beaker, Camera, CircleDot, LayoutDashboard, Ruler, type LucideIcon } from 'lucide-react'
+import { Atom, Beaker, Camera, CircleDot, Gauge, LayoutDashboard, LineChart, Ruler, type LucideIcon } from 'lucide-react'
 import type { Role } from '@/types'
 
 export type NavItem = {
@@ -15,6 +15,8 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/app/calibrations', label: 'Calibration', icon: Ruler },
   { to: '/app/analysis', label: 'Analysis & Jobs', icon: Beaker, alsoActive: ['/app/jobs'] },
   { to: '/app/ring-test', label: 'Ring Test', icon: CircleDot },
+  { to: '/app/hardness', label: 'Hardness Conversion', icon: Gauge },
+  { to: '/app/phase-diagram', label: 'Fe–C Phase Diagram', icon: LineChart },
   { to: '/app/periodic-table', label: 'Periodic Table', icon: Atom },
 ]
 

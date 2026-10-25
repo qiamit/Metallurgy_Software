@@ -19,6 +19,8 @@ export const RingTestReportPage = lazy(() => import('@/features/ring-test/RingTe
 export const RingTestSettingsPage = lazy(() => import('@/features/ring-test/RingTestSettingsPage'))
 export const RingTestHelpPage = lazy(() => import('@/features/ring-test/RingTestHelpPage'))
 export const PeriodicTablePage = lazy(() => import('@/features/periodic-table/PeriodicTablePage'))
+export const HardnessConversionPage = lazy(() => import('@/features/hardness/HardnessConversionPage'))
+export const PhaseDiagramPage = lazy(() => import('@/features/phase-diagram/PhaseDiagramPage'))
 export const ElementPage = lazy(() => import('@/features/periodic-table/ElementPage'))
 
 /** Stable shell for every signed-in route — avoids remounting the layout between pages. */
