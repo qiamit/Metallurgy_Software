@@ -31,8 +31,8 @@ export function CalibrationTable({
             )}
             <th className="text-left px-4 py-3">Name</th>
             <th className="text-left px-4 py-3">Objective</th>
-            <th className="text-left px-4 py-3">X µm/px</th>
-            <th className="text-left px-4 py-3">Y µm/px</th>
+            <th className="text-left px-4 py-3 normal-case">X µm/px</th>
+            <th className="text-left px-4 py-3 normal-case">Y µm/px</th>
             <th className="text-left px-4 py-3">Unit</th>
             <th className="text-left px-4 py-3">Notes</th>
             {canEdit && <th className="px-4 py-3 text-right">Action</th>}

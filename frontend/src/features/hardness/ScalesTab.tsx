@@ -16,8 +16,8 @@ export function ScalesTab() {
               <tr>
                 <th className={th}>Scale</th>
                 <th className={th}>Indenter</th>
-                <th className={`${th} text-right`}>Preliminary kgf</th>
-                <th className={`${th} text-right`}>Total kgf</th>
+                <th className={`${th} text-right normal-case`}>Preliminary kgf</th>
+                <th className={`${th} text-right normal-case`}>Total kgf</th>
                 <th className={th}>Typical use</th>
               </tr>
             </thead>
@@ -51,7 +51,7 @@ export function ScalesTab() {
                 <tr>
                   <th className={th}>Symbol</th>
                   <th className={`${th} text-right`}>F (N)</th>
-                  <th className={`${th} text-right`}>F (kgf)</th>
+                  <th className={`${th} text-right normal-case`}>F (kgf)</th>
                   <th className={th}>Range</th>
                 </tr>
               </thead>
@@ -77,7 +77,7 @@ export function ScalesTab() {
                 <tr>
                   <th className={th}>Material</th>
                   <th className={th}>Hardness</th>
-                  <th className={`${th} text-right`}>0.102·F/D²</th>
+                  <th className={`${th} text-right normal-case`}>0.102·F/D²</th>
                 </tr>
               </thead>
               <tbody>

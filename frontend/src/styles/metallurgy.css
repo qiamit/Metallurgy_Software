@@ -269,6 +269,12 @@ progress {
   text-transform: uppercase;
 }
 
+/* symbols and units (ρ, ν, α, g/cm³ …) must keep their case */
+.table-head th.normal-case {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 table tbody tr:hover {
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }

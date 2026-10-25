@@ -443,7 +443,7 @@ export function PeriodicTable() {
                   <tr>
                     <th>Element</th>
                     <th>Role</th>
-                    <th>Typical wt%</th>
+                    <th className="normal-case">Typical wt%</th>
                     <th>Key effects</th>
                   </tr>
                 </thead>

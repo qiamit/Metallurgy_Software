@@ -79,7 +79,7 @@ function CompositionCard() {
           <thead className="table-head">
             <tr>
               <th className="text-left px-3 py-2">Element</th>
-              <th className="text-center px-3 py-2">{inUnit}</th>
+              <th className="text-center px-3 py-2 normal-case">{inUnit}</th>
               <th className="px-3 py-2">Bal.</th>
               <th className="w-8" />
             </tr>
@@ -160,8 +160,8 @@ function CompositionCard() {
           <thead className="table-head">
             <tr>
               <th className="text-left px-3 py-2">Element</th>
-              <th className="text-center px-3 py-2">wt %</th>
-              <th className="text-center px-3 py-2">at %</th>
+              <th className="text-center px-3 py-2 normal-case">wt %</th>
+              <th className="text-center px-3 py-2 normal-case">at %</th>
             </tr>
           </thead>
           <tbody>
