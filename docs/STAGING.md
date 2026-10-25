@@ -63,3 +63,18 @@ Not yet covered: password-reset email (no SMTP on staging), Ring Test AI on real
   fully pearlitic micro correctly flagged "not ferrite".
 - `smoke.cjs` now shows 3 expected FAILs: Python grain parity (algorithm replaced on purpose) and the two
   "no AI key" checks (a real key is saved on staging).
+
+## Security settings applied (2026-10-25)
+
+- auth: `GOTRUE_PASSWORD_MIN_LENGTH=10` (was 8), `GOTRUE_RATE_LIMIT_TOKEN_REFRESH=150`,
+  `GOTRUE_RATE_LIMIT_VERIFY=30`, `GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED=true`,
+  `GOTRUE_SESSIONS_INACTIVITY_TIMEOUT=168h`. Already set before: sign-up disabled, refresh-token rotation with
+  10 s reuse interval, `GOTRUE_JWT_EXP=3600`, reset-password URI allow-list, email rate limit.
+- gateway: `CORS_DEV_ORIGIN_REGEX=^$` — a local Vite dev server can no longer call staging; set it back to the
+  default regex on staging if local development against staging is needed.
+- pdf-service: `PDF_ALLOWED_ORIGINS=https://frontend-staging-4d6a.up.railway.app` (was already set).
+- Checked on staging: sign-up refused (422); 9-character password refused by GoTrue and by `/register`;
+  sign-in, token refresh and rotation work; an old refresh token is refused once its replacement was used
+  (GoTrue v2.174 does not revoke the newer tokens of that session — comes with the GoTrue upgrade); gateway and
+  pdf-service CORS allow only the frontend origin (localhost and other `*.up.railway.app` refused); PDF needs a
+  signed-in user (401 otherwise) and renders; module smoke tests and the frontend all pass.

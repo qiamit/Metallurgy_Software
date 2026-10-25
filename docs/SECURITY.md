@@ -123,7 +123,7 @@ Decisions / production access needed:
    / gateway address and the per-IP `/register` limit (and GoTrue's per-IP limits) are effectively shared by all
    users. Verify on staging (`curl` with a forged `X-Forwarded-For`), then set Caddy `trusted_proxies` to Railway's
    edge range and GoTrue `GOTRUE_RATE_LIMIT_HEADER` accordingly. Do not trust a header the client can set.
-3. Railway variables to set: `CORS_DEV_ORIGIN_REGEX=^$` on the gateway (production), `PDF_ALLOWED_ORIGINS` on
+3. Railway variables to set (**done on staging 2026-10-25**, see docs/STAGING.md; production still to do): `CORS_DEV_ORIGIN_REGEX=^$` on the gateway (production), `PDF_ALLOWED_ORIGINS` on
    pdf-service, `VITE_SUPABASE_URL` / `VITE_PDF_SERVICE_URL` visible at runtime on frontend (check the CSP header),
    the GoTrue block in §1 (`GOTRUE_PASSWORD_MIN_LENGTH=10`). Then apply migration `20261026000000`.
 4. **MFA (TOTP)** for admins/owners: `GOTRUE_MFA_TOTP_ENROLL_ENABLED=true`, `GOTRUE_MFA_TOTP_VERIFY_ENABLED=true` + an
