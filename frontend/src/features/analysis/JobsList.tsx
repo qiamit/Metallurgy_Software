@@ -7,7 +7,8 @@ import { formatStatus } from "@/lib/text";
 import { ANALYSIS_LABELS, type AnalysisJob } from "@/types";
 import type { JobFilters } from "@/features/analysis/JobsFilterDropdown";
 
-function statusBadge(status: string) {
+// eslint-disable-next-line react-refresh/only-export-components
+export function statusBadge(status: string) {
   if (status === "completed" || status === "reviewed") return "badge badge-ok";
   if (status === "failed" || status === "rejected") return "badge badge-danger";
   if (status === "processing" || status === "pending") return "badge badge-warn";

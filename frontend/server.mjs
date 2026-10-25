@@ -25,6 +25,7 @@ const TYPES = {
   '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
   '.xml': 'application/xml; charset=utf-8',
   '.pdf': 'application/pdf',
@@ -120,7 +121,8 @@ function sendFile(res, filePath, status) {
   res.writeHead(status, {
     'Content-Type': TYPES[ext] || 'application/octet-stream',
     'Content-Length': body.length,
-    'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+    // Only hashed build assets are immutable; the shell, service worker, manifest and icons are revalidated.
+    'Cache-Control': filePath.startsWith(path.join(ROOT, 'assets') + path.sep) ? 'public, max-age=31536000, immutable' : 'no-cache',
     ...securityHeaders(),
   })
   res.end(body)

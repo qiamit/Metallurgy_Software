@@ -17,6 +17,19 @@ import { CreateLabDialog } from '@/components/layout/CreateLabDialog'
 
 const SIDEBAR_KEY = 'ml_sidebar_open'
 
+const DESKTOP_QUERY = '(min-width: 1024px)'
+
+function useIsDesktop() {
+  const [desktop, setDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia(DESKTOP_QUERY).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_QUERY)
+    const onChange = () => setDesktop(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return desktop
+}
+
 function readSidebarOpen(): boolean {
   try {
     const saved = localStorage.getItem(SIDEBAR_KEY)
@@ -31,17 +44,32 @@ export function GlobalLayout() {
   const navigate = useNavigate()
   const { user, profileName, orgs, org, role, logout, selectOrg } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(readSidebarOpen)
+  // Desktop: docked sidebar, shown / hidden (remembered). Mobile & tablet: off-canvas drawer.
+  const isDesktop = useIsDesktop()
+  const [dockedOpen, setDockedOpen] = useState(readSidebarOpen)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const sidebarOpen = isDesktop ? dockedOpen : drawerOpen
+  const setSidebarOpen = (open: boolean) => (isDesktop ? setDockedOpen(open) : setDrawerOpen(open))
   const [createOpen, setCreateOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
+  // close the drawer when navigating
+  useEffect(() => setDrawerOpen(false), [pathname])
+
+  useEffect(() => {
+    if (!drawerOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDrawerOpen(false)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [drawerOpen])
+
   useEffect(() => {
     try {
-      localStorage.setItem(SIDEBAR_KEY, String(sidebarOpen))
+      localStorage.setItem(SIDEBAR_KEY, String(dockedOpen))
     } catch {
       /* ignore */
     }
-  }, [sidebarOpen])
+  }, [dockedOpen])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -63,10 +91,20 @@ export function GlobalLayout() {
 
   return (
     <div className="min-h-screen flex bg-[var(--bg)] text-[var(--ink)]">
+      {!isDesktop && drawerOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setDrawerOpen(false)} aria-hidden />
+      )}
       <aside
-        className={`sidebar shrink-0 flex flex-col border-r border-[var(--sidebar-border)] transition-[width] duration-200 ease-out overflow-hidden ${
-          sidebarOpen ? 'w-[272px]' : 'w-0 border-r-0'
-        }`}
+        className={
+          isDesktop
+            ? `sidebar sticky top-0 h-screen shrink-0 flex flex-col border-r border-[var(--sidebar-border)] transition-[width] duration-200 ease-out overflow-hidden ${
+                sidebarOpen ? 'w-[272px]' : 'w-0 border-r-0'
+              }`
+            : `sidebar fixed inset-y-0 left-0 z-50 w-[272px] max-w-[85vw] flex flex-col border-r border-[var(--sidebar-border)] overflow-y-auto transition-transform duration-200 ease-out ${
+                sidebarOpen ? 'translate-x-0 shadow-[var(--shadow-lg)]' : '-translate-x-full'
+              }`
+        }
+        aria-hidden={!sidebarOpen}
       >
         <div className="sidebar-brand min-w-[272px]">
           <div className="flex items-center justify-between gap-2">
@@ -92,7 +130,7 @@ export function GlobalLayout() {
         </div>
 
         <div className="sidebar-section-label min-w-[272px]">Main Menu</div>
-        <nav className="sidebar-nav min-w-[272px]">
+        <nav className="sidebar-nav min-w-[272px] flex-1 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const active = isNavActive(item, pathname)
             const Icon = item.icon
@@ -113,8 +151,8 @@ export function GlobalLayout() {
       </aside>
 
       <main id="app-main" className="relative flex-1 min-w-0 flex flex-col">
-        <div className="relative z-30 h-[56px] shrink-0 border-b border-[var(--line)] bg-[var(--panel)] px-8 flex items-center justify-between shadow-[var(--shadow-sm)]">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="sticky top-0 z-30 h-[56px] shrink-0 border-b border-[var(--line)] bg-[var(--panel)] px-3 sm:px-5 lg:px-6 flex items-center justify-between gap-2 shadow-[var(--shadow-sm)]">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {!sidebarOpen && (
               <button
                 type="button"
@@ -130,7 +168,7 @@ export function GlobalLayout() {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-2 text-sm text-[var(--muted)] font-medium max-w-[min(480px,50vw)] hover:text-[var(--ink)]"
+                  className="flex min-w-0 items-center gap-2 text-sm text-[var(--muted)] font-medium max-w-[min(480px,55vw)] hover:text-[var(--ink)]"
                   aria-label="Switch Lab Workspace"
                 >
                   <Building2 size={15} className="shrink-0" />
@@ -161,12 +199,12 @@ export function GlobalLayout() {
             </DropdownMenu>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <div className="relative" ref={menuRef}>
               <button
                 type="button"
                 onClick={() => setMenuOpen((open) => !open)}
-                className="flex items-center gap-2.5 rounded-none border border-[var(--line)] bg-[var(--panel)] px-2.5 py-1.5 hover:border-[var(--accent)] transition max-w-[280px]"
+                className="flex items-center gap-2.5 rounded-none border border-[var(--line)] bg-[var(--panel)] px-1.5 py-1 sm:px-2.5 sm:py-1.5 hover:border-[var(--accent)] transition max-w-[280px]"
                 aria-expanded={menuOpen}
                 aria-haspopup="true"
               >
@@ -211,7 +249,7 @@ export function GlobalLayout() {
                         await logout()
                         navigate('/login')
                       }}
-                      className="w-full flex items-center gap-2 rounded-none px-2 py-2.5 text-sm text-[var(--danger)] hover:bg-red-50 transition"
+                      className="w-full flex items-center gap-2 rounded-none px-2 py-2.5 text-sm text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] transition"
                     >
                       <LogOut size={15} />
                       Sign Out
@@ -222,7 +260,7 @@ export function GlobalLayout() {
             </div>
           </div>
         </div>
-        <div className="flex-1 pt-[2mm] px-[2mm] overflow-auto">
+        <div className="flex-1 min-w-0 p-3 sm:p-4 lg:p-6">
           {org ? (
             <Suspense fallback={<div className="p-6 text-sm text-[var(--muted)]">Loading…</div>}>
               <Outlet />

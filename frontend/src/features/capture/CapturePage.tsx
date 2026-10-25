@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Image as ImageIcon, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ImageEditToolbar } from "@/features/capture/ImageEditToolbar";
@@ -89,7 +89,7 @@ function SettingsModal({
   }, [onClose]);
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <button
         aria-label="Close"
         className="absolute inset-0 bg-black/50"
@@ -97,12 +97,12 @@ function SettingsModal({
         type="button"
       />
       <div
-        className={`relative z-10 w-full border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] ${wide ? "max-w-2xl" : "max-w-lg"}`}
+        className={`relative z-10 flex max-h-[92dvh] w-full flex-col border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] ${wide ? "sm:max-w-2xl" : "sm:max-w-lg"}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
       >
-        <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--line)] px-4 py-3 sm:px-5">
           <h3 id="settings-modal-title" className="text-sm font-bold text-[var(--ink)]">
             {title}
           </h3>
@@ -115,7 +115,7 @@ function SettingsModal({
             <X size={18} />
           </button>
         </div>
-        <div className="p-5 space-y-4">{children}</div>
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4">{children}</div>
       </div>
     </div>
   );
@@ -933,8 +933,8 @@ export default function CapturePage() {
   return (
     <div className="relative space-y-6 min-h-[calc(100dvh-3.5rem)]">
       <div className="card-elevated overflow-hidden flex flex-col w-full">
-        <div className="p-5 pb-4 space-y-4 shrink-0">
-        <div className="flex flex-wrap gap-2 items-center justify-center">
+        <div className="p-3 sm:p-5 sm:pb-4 space-y-3 shrink-0">
+        <div className="capture-actions">
           {!streamReady ? (
             <button className="btn btn-primary" onClick={startCamera} type="button">
               Start Camera
@@ -978,7 +978,7 @@ export default function CapturePage() {
             Sample Details
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary capture-run"
             disabled={!imageReady || busy || !canAnalyze}
             onClick={submit}
             title={canAnalyze ? undefined : "Requires the Analyst role or higher"}
@@ -1040,9 +1040,9 @@ export default function CapturePage() {
               />
             )}
             {showPlaceholder && (
-              <div className="absolute inset-0 z-[2] grid place-items-center text-white/50 text-sm px-6 text-center">
-                Camera Preview Will Appear Here. If the Microscope USB Camera Is Not
-                Exposed as a Webcam, Use Upload.
+              <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-2 text-white/45 text-sm">
+                <ImageIcon size={36} strokeWidth={1.5} />
+                No Image
               </div>
             )}
             </div>

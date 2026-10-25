@@ -787,6 +787,72 @@ table tbody tr:hover {
   display: block;
 }
 
+/* Capture actions: centred row on wide screens, two-column grid on phones */
+.capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 639px) {
+  .capture-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .capture-actions > .btn,
+  .capture-actions > label.btn {
+    width: 100%;
+  }
+  .capture-actions > .capture-run {
+    grid-column: 1 / -1;
+  }
+
+  /* Phone: preview full width on top, tool bars become horizontal scrolling rows */
+  .capture-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas:
+      "preview"
+      "left"
+      "right"
+      "bottom";
+    min-height: 0;
+    gap: 0;
+  }
+  .capture-workspace-preview {
+    aspect-ratio: 4 / 3;
+    height: auto;
+  }
+  .image-edit-bar-vertical {
+    flex-direction: row;
+    width: 100%;
+    height: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 0;
+    border-top: 1px solid var(--line);
+    justify-self: stretch;
+  }
+  .image-edit-bar-vertical .image-edit-bar-section {
+    flex-direction: row;
+    flex-shrink: 0;
+    border-bottom: none;
+    border-right: 1px solid var(--line);
+  }
+  .image-edit-bar-vertical .image-edit-slider-label {
+    flex-direction: row;
+    width: auto;
+  }
+  .image-edit-bar-vertical .image-edit-slider-label input[type="range"] {
+    width: 4.5rem;
+  }
+  .image-edit-bar {
+    --image-edit-tool-size: 2.25rem;
+  }
+}
+
 /* Periodic Table (Capture Studio style alignment) */
 .pt-shell {
   display: flex;

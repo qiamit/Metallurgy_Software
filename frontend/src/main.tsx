@@ -13,6 +13,13 @@ import App from './App.tsx'
 // Theme before the first paint (Settings → Theme).
 applyTheme(readStoredTheme())
 
+// Installable PWA: offline app shell (production builds only).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined)
+  })
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
