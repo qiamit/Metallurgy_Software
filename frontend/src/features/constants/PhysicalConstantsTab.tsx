@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { PHYSICAL_CONSTANTS } from '@/features/constants/constants'
 import CopyButton from '@/features/constants/CopyButton'
 
-export default function PhysicalConstantsTab() {
-  const [query, setQuery] = useState('')
+export default function PhysicalConstantsTab({ query }: { query: string }) {
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return PHYSICAL_CONSTANTS
@@ -14,14 +13,6 @@ export default function PhysicalConstantsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <label className="field w-full max-w-sm">
-          <span>Search</span>
-          <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
-        </label>
-        <span className="text-xs text-[var(--muted)]">CODATA 2018</span>
-      </div>
-
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="table-head">
