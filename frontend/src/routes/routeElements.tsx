@@ -22,6 +22,7 @@ export const PeriodicTablePage = lazy(() => import('@/features/periodic-table/Pe
 export const HardnessConversionPage = lazy(() => import('@/features/hardness/HardnessConversionPage'))
 export const PhaseDiagramPage = lazy(() => import('@/features/phase-diagram/PhaseDiagramPage'))
 export const ElementPage = lazy(() => import('@/features/periodic-table/ElementPage'))
+export const ConstantsPage = lazy(() => import('@/features/constants/ConstantsPage'))
 
 /** Stable shell for every signed-in route — avoids remounting the layout between pages. */
 export function AuthenticatedShell() {

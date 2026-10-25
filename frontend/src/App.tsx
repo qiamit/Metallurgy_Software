@@ -14,6 +14,7 @@ import {
   LandingPage,
   LoginPage,
   PeriodicTablePage,
+  ConstantsPage,
   RegisterPage,
   ResetPasswordPage,
   RingTestHelpPage,
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="phase-diagram" element={<PhaseDiagramPage />} />
             <Route path="periodic-table" element={<PeriodicTablePage />} />
             <Route path="periodic-table/element/:symbol" element={<ElementPage />} />
+            <Route path="constants" element={<ConstantsPage />} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Route>
 
