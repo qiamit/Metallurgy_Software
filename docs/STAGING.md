@@ -44,3 +44,11 @@ both rings, two diameters and t1–t8. The endpoint refuses callers without logi
 ignored, and t1–t8 overlay labels say **px** until a mm/px scale is set (they used to show pixels with an "mm" unit).
 
 Not yet covered: password-reset email (no SMTP on staging), Ring Test AI on real specimen photos with a ruler.
+
+## Chart-calibrated modules (2026-10-25, commit a74843d)
+
+- Migration `20261025000300_cast_iron_analysis_types` applied (adds `nodularity`, `graphite_flake`).
+- functions and frontend redeployed. End-to-end runs on chart fields through the gateway:
+  grain size E112 I-B G 5.0 → 4.77; JK A-heavy 2 → 1.5; nodularity >90 % → 92.3 %; flake size → class 4.
+  Each about 2 s.
+- Hardness Conversion (`/app/hardness`) and Fe–C Phase Diagram (`/app/phase-diagram`) render; HRC 40 → HV 393 / HBW 372.
