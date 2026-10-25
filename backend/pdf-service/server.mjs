@@ -1,0 +1,311 @@
+/**
+ * Local Playwright PDF service — renders HTML with Chromium (same engine as Chrome print).
+ * POST /pdf  JSON: { html, filename?, format?, landscape?, margin? }
+ * GET  /health
+ */
+import http from 'node:http'
+import { chromium } from 'playwright'
+
+const PORT = Number(process.env.PORT || process.env.PDF_SERVICE_PORT || 3847)
+const HOST = process.env.PDF_SERVICE_HOST || '0.0.0.0'
+const MAX_HTML_BYTES = Number(process.env.PDF_MAX_HTML_BYTES || 12_000_000)
+const AUTH_URL = (process.env.AUTH_URL || '').replace(/\/$/, '')
+const AUTH_ANON_KEY = process.env.AUTH_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
+const ON_RAILWAY = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID)
+// Each render holds a Chromium page; cap how many run at once (extra callers get 503).
+const PDF_CONCURRENCY = Math.max(1, Number(process.env.PDF_CONCURRENCY || 2))
+const PDF_QUEUE = Math.max(0, Number(process.env.PDF_QUEUE || 10))
+let activeRenders = 0
+/** @type {Array<() => void>} */
+const renderQueue = []
+
+async function withRenderSlot(task) {
+  if (activeRenders >= PDF_CONCURRENCY) {
+    if (renderQueue.length >= PDF_QUEUE) {
+      const err = new Error('PDF service is busy. Please try again in a moment.')
+      err.statusCode = 503
+      throw err
+    }
+    await new Promise((resolve) => renderQueue.push(() => resolve(undefined)))
+  } else {
+    activeRenders += 1
+  }
+  try {
+    return await task()
+  } finally {
+    const next = renderQueue.shift()
+    if (next) next()
+    else activeRenders -= 1
+  }
+}
+
+/** @type {import('playwright').Browser | null} */
+let browser = null
+
+async function getBrowser() {
+  if (browser && browser.isConnected()) return browser
+  const sandboxArgs =
+    process.env.RAILWAY_ENVIRONMENT || process.env.PLAYWRIGHT_NO_SANDBOX === '1'
+      ? ['--no-sandbox']
+      : []
+  browser = await chromium.launch({
+    headless: true,
+    args: ['--disable-dev-shm-usage', '--font-render-hinting=none', ...sandboxArgs],
+  })
+  return browser
+}
+
+/**
+ * @param {unknown} body
+ */
+function parseBody(body) {
+  if (!body || typeof body !== 'object') throw new Error('JSON body required')
+  const o = /** @type {Record<string, unknown>} */ (body)
+  const html = typeof o.html === 'string' ? o.html : ''
+  if (!html.trim()) throw new Error('html is required')
+  if (Buffer.byteLength(html, 'utf8') > MAX_HTML_BYTES) {
+    throw new Error('HTML payload too large')
+  }
+  const filename =
+    typeof o.filename === 'string' && o.filename.trim()
+      ? o.filename.trim().replace(/[\\/:*?"<>|\u0000-\u001f\u007f]+/g, '_').slice(0, 150)
+      : 'document.pdf'
+  const formatRaw = typeof o.format === 'string' ? o.format.toLowerCase() : 'a4'
+  const format =
+    formatRaw === 'letter' || formatRaw === 'legal' || formatRaw === 'a5' || formatRaw === 'a4'
+      ? formatRaw
+      : 'a4'
+  const landscape = o.landscape === true
+  // Only short CSS lengths reach Chromium (e.g. "12mm", "0.5in").
+  const cssLength = (v) => (typeof v === 'string' && /^\d{1,3}(\.\d{1,2})?(mm|cm|in|px)?$/.test(v.trim()) ? v.trim() : '0mm')
+  const m = o.margin && typeof o.margin === 'object' ? /** @type {Record<string, unknown>} */ (o.margin) : {}
+  const margin = { top: cssLength(m.top), right: cssLength(m.right), bottom: cssLength(m.bottom), left: cssLength(m.left) }
+  return { html, filename, format, landscape, margin }
+}
+
+/**
+ * @param {string} html
+ * @param {{ format: string; landscape: boolean; margin: Record<string, string> }} opts
+ */
+// Comma-separated env lists, e.g. PDF_ALLOWED_ORIGINS=https://lab.example.com
+const ALLOWED_ORIGINS = String(process.env.PDF_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean)
+const ASSET_HOSTS = String(process.env.PDF_ASSET_HOSTS || '')
+  .split(',')
+  .map((v) => v.trim().toLowerCase())
+  .filter(Boolean)
+
+function isAllowedAsset(url) {
+  if (url.startsWith('data:') || url.startsWith('blob:') || url === 'about:blank') return true
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return ASSET_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
+  } catch {
+    return false
+  }
+}
+
+async function callerIsSignedIn(req) {
+  if (!ON_RAILWAY && !AUTH_URL) return true
+  if (!AUTH_URL) {
+    const err = new Error('PDF service auth is not configured')
+    err.statusCode = 503
+    throw err
+  }
+  const header = String(req.headers.authorization || '')
+  const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : ''
+  if (!token) {
+    const err = new Error('Sign in required')
+    err.statusCode = 401
+    throw err
+  }
+  const res = await fetch(`${AUTH_URL}/user`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(AUTH_ANON_KEY ? { apikey: AUTH_ANON_KEY } : {}),
+    },
+  })
+  if (!res.ok) {
+    const err = new Error('Sign in required')
+    err.statusCode = 401
+    throw err
+  }
+  return true
+}
+
+async function htmlToPdf(html, opts) {
+  const b = await getBrowser()
+  // Report HTML needs no JavaScript. With scripts off, submitted HTML cannot open WebSockets or
+  // otherwise reach the internal network (page.route only sees HTTP requests).
+  const context = await b.newContext({ javaScriptEnabled: false, serviceWorkers: 'block', acceptDownloads: false })
+  const page = await context.newPage()
+  try {
+    await page.route('**/*', (route) => {
+      if (isAllowedAsset(route.request().url())) route.continue()
+      else route.abort()
+    })
+    await page.setContent(html, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000,
+    })
+    // Extra settle for fonts / late images
+    await page.evaluate(async () => {
+      if (document.fonts?.ready) await document.fonts.ready
+      const imgs = Array.from(document.images)
+      await Promise.all(
+        imgs.map(
+          (img) =>
+            img.complete
+              ? Promise.resolve()
+              : new Promise((resolve) => {
+                  img.addEventListener('load', () => resolve(undefined), { once: true })
+                  img.addEventListener('error', () => resolve(undefined), { once: true })
+                }),
+        ),
+      )
+    })
+    await new Promise((r) => setTimeout(r, 200))
+
+    const pdf = await page.pdf({
+      format: opts.format,
+      landscape: opts.landscape,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: opts.margin.top ?? '0mm',
+        right: opts.margin.right ?? '0mm',
+        bottom: opts.margin.bottom ?? '0mm',
+        left: opts.margin.left ?? '0mm',
+      },
+    })
+    return pdf
+  } finally {
+    await context.close().catch(() => undefined)
+  }
+}
+
+/**
+ * @param {http.IncomingMessage} req
+ */
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let size = 0
+    req.on('data', (c) => {
+      size += c.length
+      if (size > MAX_HTML_BYTES + 64_000) {
+        reject(new Error('Request body too large'))
+        req.destroy()
+        return
+      }
+      chunks.push(c)
+    })
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8')
+        resolve(raw ? JSON.parse(raw) : {})
+      } catch {
+        reject(new Error('Invalid JSON body'))
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+/**
+ * @param {http.ServerResponse} res
+ * @param {number} status
+ * @param {unknown} payload
+ */
+function allowedPdfOrigin(req) {
+  const origin = String(req.headers.origin || '').trim()
+  if (!origin) return ''
+  if (ALLOWED_ORIGINS.includes(origin)) return origin
+  // Any *.up.railway.app origin only while PDF_ALLOWED_ORIGINS is unset (first deploys); set it in Railway.
+  if (!ALLOWED_ORIGINS.length && /^https:\/\/[a-z0-9-]+\.up\.railway\.app$/i.test(origin)) return origin
+  if (!ON_RAILWAY && /^http:\/\/(localhost|127\.0\.0\.1):51(7[3-9]|8[0-5])$/.test(origin)) return origin
+  return ''
+}
+
+function corsHeaders(req) {
+  const origin = allowedPdfOrigin(req)
+  const headers = {
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    Vary: 'Origin',
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
+  }
+  if (origin) headers['Access-Control-Allow-Origin'] = origin
+  return headers
+}
+
+function sendJson(res, status, payload, req) {
+  const body = JSON.stringify(payload)
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    ...corsHeaders(req),
+  })
+  res.end(body)
+}
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url || '/', `http://${HOST}:${PORT}`)
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, corsHeaders(req))
+    res.end()
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/health') {
+    sendJson(res, 200, { ok: true, service: 'playwright-pdf' }, req)
+    return
+  }
+
+  if (req.method === 'POST' && (url.pathname === '/pdf' || url.pathname === '/api/pdf')) {
+    try {
+      await callerIsSignedIn(req)
+      const json = await readJson(req)
+      const opts = parseBody(json)
+      const pdf = await withRenderSlot(() => htmlToPdf(opts.html, opts))
+      const outName = opts.filename.toLowerCase().endsWith('.pdf')
+        ? opts.filename
+        : `${opts.filename}.pdf`
+      res.writeHead(200, {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${outName.replace(/"/g, '')}"`,
+        'Content-Length': pdf.length,
+        ...corsHeaders(req),
+      })
+      res.end(pdf)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'PDF generation failed'
+      const status = Number(err?.statusCode) || (/too large|required|Invalid JSON/i.test(detail) ? 400 : 500)
+      console.error('[pdf-service]', status, detail)
+      // 5xx: never send Chromium / Playwright internals to the browser.
+      const message = ON_RAILWAY && status >= 500 && status !== 503 ? 'PDF generation failed' : detail
+      sendJson(res, status, { error: message }, req)
+    }
+    return
+  }
+
+  sendJson(res, 404, { error: 'Not found' }, req)
+})
+
+server.listen(PORT, HOST, () => {
+  console.log(`[pdf-service] Playwright PDF listening on http://${HOST}:${PORT}`)
+  console.log(`[pdf-service] POST /pdf  |  GET /health`)
+})
+
+async function shutdown() {
+  console.log('[pdf-service] shutting down…')
+  server.close()
+  if (browser) await browser.close().catch(() => undefined)
+  process.exit(0)
+}
+
+process.on('SIGINT', () => void shutdown())
+process.on('SIGTERM', () => void shutdown())

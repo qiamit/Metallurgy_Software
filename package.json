@@ -1,12 +1,16 @@
 {
   "name": "metallurgy-software",
   "private": true,
-  "workspaces": [
-    "apps/web",
-    "packages/shared"
-  ],
+  "version": "0.0.0",
   "scripts": {
-    "dev:web": "npm --workspace apps/web run dev",
-    "build:web": "npm --workspace apps/web run build"
+    "dev": "npm run dev --prefix frontend",
+    "functions:dev": "npm run dev --prefix backend/functions",
+    "pdf:dev": "npm run dev --prefix backend/pdf-service",
+    "pdf:install": "npm install --prefix backend/pdf-service && npm run install-browser --prefix backend/pdf-service",
+    "build": "npm run build --prefix frontend",
+    "typecheck": "npm run typecheck --prefix frontend",
+    "lint": "npm run lint --prefix frontend",
+    "preview": "npm run preview --prefix frontend",
+    "db:push": "node backend/scripts/refuse-hosted-cloud.cjs"
   }
 }

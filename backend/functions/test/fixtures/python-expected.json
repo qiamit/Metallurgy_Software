@@ -1,0 +1,368 @@
+{
+ "results": {
+  "grain_size": {
+   "standard": "ISO 643:2019",
+   "method": "intercept",
+   "mean_intercept_um": 40.464,
+   "mean_intercept_mm": 0.040464,
+   "grain_size_number_G": 5.96,
+   "grain_count_estimate": 38,
+   "na_per_mm2": 292.776,
+   "grain_size_number_G_planimetric": 9.19,
+   "intercept_count": 95,
+   "um_per_px_x": 0.65,
+   "um_per_px_y": 0.65,
+   "image_width_px": 640,
+   "image_height_px": 480,
+   "notes": "Deterministic CV estimate. Validate on etched specimens with reviewer."
+  },
+  "inclusion": {
+   "standard": "ISO 4967:1998",
+   "inclusion_count": 36,
+   "type_counts": {
+    "A": 10,
+    "B": 11,
+    "C": 7,
+    "D": 8,
+    "DS": 0
+   },
+   "worst_severity_index": 2,
+   "particles": [
+    {
+     "type": "D",
+     "length_um": 3.0,
+     "width_um": 2.5,
+     "area_px": 20.0,
+     "severity_index": 1
+    },
+    {
+     "type": "D",
+     "length_um": 4.0,
+     "width_um": 3.0,
+     "area_px": 35.0,
+     "severity_index": 1
+    },
+    {
+     "type": "C",
+     "length_um": 10.5,
+     "width_um": 4.0,
+     "area_px": 140.0,
+     "severity_index": 1
+    },
+    {
+     "type": "D",
+     "length_um": 9.0,
+     "width_um": 6.0,
+     "area_px": 187.0,
+     "severity_index": 1
+    },
+    {
+     "type": "B",
+     "length_um": 13.5,
+     "width_um": 3.5,
+     "area_px": 156.0,
+     "severity_index": 1
+    },
+    {
+     "type": "C",
+     "length_um": 30.5,
+     "width_um": 10.5,
+     "area_px": 654.0,
+     "severity_index": 2
+    },
+    {
+     "type": "B",
+     "length_um": 21.5,
+     "width_um": 6.0,
+     "area_px": 462.0,
+     "severity_index": 1
+    },
+    {
+     "type": "B",
+     "length_um": 20.0,
+     "width_um": 4.5,
+     "area_px": 312.0,
+     "severity_index": 1
+    },
+    {
+     "type": "B",
+     "length_um": 23.5,
+     "width_um": 5.0,
+     "area_px": 414.0,
+     "severity_index": 1
+    },
+    {
+     "type": "C",
+     "length_um": 13.5,
+     "width_um": 4.5,
+     "area_px": 208.0,
+     "severity_index": 1
+    },
+    {
+     "type": "C",
+     "length_um": 28.0,
+     "width_um": 13.0,
+     "area_px": 359.0,
+     "severity_index": 2
+    },
+    {
+     "type": "D",
+     "length_um": 7.0,
+     "width_um": 4.5,
+     "area_px": 104.0,
+     "severity_index": 1
+    },
+    {
+     "type": "A",
+     "length_um": 27.0,
+     "width_um": 3.5,
+     "area_px": 318.0,
+     "severity_index": 2
+    },
+    {
+     "type": "B",
+     "length_um": 24.0,
+     "width_um": 5.0,
+     "area_px": 423.0,
+     "severity_index": 1
+    },
+    {
+     "type": "D",
+     "length_um": 25.0,
+     "width_um": 24.0,
+     "area_px": 850.5,
+     "severity_index": 2
+    },
+    {
+     "type": "A",
+     "length_um": 29.0,
+     "width_um": 5.5,
+     "area_px": 570.0,
+     "severity_index": 2
+    },
+    {
+     "type": "A",
+     "length_um": 30.0,
+     "width_um": 3.0,
+     "area_px": 295.0,
+     "severity_index": 2
+    },
+    {
+     "type": "A",
+     "length_um": 28.5,
+     "width_um": 4.0,
+     "area_px": 392.0,
+     "severity_index": 2
+    },
+    {
+     "type": "C",
+     "length_um": 14.5,
+     "width_um": 5.0,
+     "area_px": 252.0,
+     "severity_index": 1
+    },
+    {
+     "type": "D",
+     "length_um": 7.5,
+     "width_um": 5.5,
+     "area_px": 140.0,
+     "severity_index": 1
+    },
+    {
+     "type": "A",
+     "length_um": 29.0,
+     "width_um": 2.0,
+     "area_px": 171.0,
+     "severity_index": 2
+    },
+    {
+     "type": "D",
+     "length_um": 29.5,
+     "width_um": 27.5,
+     "area_px": 445.0,
+     "severity_index": 2
+    },
+    {
+     "type": "B",
+     "length_um": 23.5,
+     "width_um": 6.0,
+     "area_px": 506.0,
+     "severity_index": 1
+    },
+    {
+     "type": "A",
+     "length_um": 26.0,
+     "width_um": 3.0,
+     "area_px": 255.0,
+     "severity_index": 2
+    },
+    {
+     "type": "D",
+     "length_um": 6.0,
+     "width_um": 5.5,
+     "area_px": 110.0,
+     "severity_index": 1
+    },
+    {
+     "type": "B",
+     "length_um": 20.0,
+     "width_um": 3.5,
+     "area_px": 234.0,
+     "severity_index": 1
+    },
+    {
+     "type": "C",
+     "length_um": 14.5,
+     "width_um": 6.0,
+     "area_px": 308.0,
+     "severity_index": 1
+    },
+    {
+     "type": "A",
+     "length_um": 29.0,
+     "width_um": 3.0,
+     "area_px": 285.0,
+     "severity_index": 2
+    },
+    {
+     "type": "B",
+     "length_um": 14.5,
+     "width_um": 3.0,
+     "area_px": 140.0,
+     "severity_index": 1
+    },
+    {
+     "type": "A",
+     "length_um": 20.5,
+     "width_um": 2.0,
+     "area_px": 120.0,
+     "severity_index": 1
+    },
+    {
+     "type": "C",
+     "length_um": 15.0,
+     "width_um": 5.0,
+     "area_px": 261.0,
+     "severity_index": 1
+    },
+    {
+     "type": "B",
+     "length_um": 15.0,
+     "width_um": 2.5,
+     "area_px": 116.0,
+     "severity_index": 1
+    },
+    {
+     "type": "A",
+     "length_um": 27.5,
+     "width_um": 4.0,
+     "area_px": 378.0,
+     "severity_index": 2
+    },
+    {
+     "type": "B",
+     "length_um": 22.5,
+     "width_um": 6.0,
+     "area_px": 484.0,
+     "severity_index": 1
+    },
+    {
+     "type": "B",
+     "length_um": 19.0,
+     "width_um": 2.0,
+     "area_px": 111.0,
+     "severity_index": 1
+    },
+    {
+     "type": "A",
+     "length_um": 25.5,
+     "width_um": 5.0,
+     "area_px": 450.0,
+     "severity_index": 2
+    }
+   ],
+   "notes": "Heuristic classification vs chart types A/B/C/D/DS. Reviewer confirmation required."
+  },
+  "decarb": {
+   "standard": "ISO 3887:2017",
+   "method": "metallographic_edge_transition",
+   "decarb_depth_um": 168.0,
+   "decarb_depth_mm": 0.168,
+   "edge_pixel": 140,
+   "notes": "Assumes free surface on image left. Reorient sample if needed."
+  },
+  "micro": {
+   "standard": "Micro Analysis",
+   "light_phase_fraction": 0.7117,
+   "dark_phase_fraction": 0.2883,
+   "field_area_um2": 72800.0,
+   "notes": "Binary phase split via Otsu. Extend with trained classifiers as needed."
+  },
+  "macro": {
+   "standard": "IS 10138:2010",
+   "stringer_count": 9,
+   "total_length_mm": 13.175,
+   "stringers": [
+    {
+     "length_mm": 1.0,
+     "thickness_mm": 0.125
+    },
+    {
+     "length_mm": 1.45,
+     "thickness_mm": 0.175
+    },
+    {
+     "length_mm": 1.325,
+     "thickness_mm": 0.2
+    },
+    {
+     "length_mm": 1.475,
+     "thickness_mm": 0.2
+    },
+    {
+     "length_mm": 1.825,
+     "thickness_mm": 0.125
+    },
+    {
+     "length_mm": 1.625,
+     "thickness_mm": 0.175
+    },
+    {
+     "length_mm": 1.275,
+     "thickness_mm": 0.175
+    },
+    {
+     "length_mm": 1.65,
+     "thickness_mm": 0.15
+    },
+    {
+     "length_mm": 1.55,
+     "thickness_mm": 0.175
+    }
+   ],
+   "notes": "Macroscopic inclusions >= 1 mm length. Units depend on calibration (use mm scale for macro)."
+  }
+ },
+ "scales": {
+  "grain_size": [
+   0.65,
+   0.65
+  ],
+  "inclusion": [
+   0.5,
+   0.5
+  ],
+  "decarb": [
+   1.2,
+   1.2
+  ],
+  "micro": [
+   0.65,
+   0.7
+  ],
+  "macro": [
+   25,
+   25
+  ]
+ }
+}

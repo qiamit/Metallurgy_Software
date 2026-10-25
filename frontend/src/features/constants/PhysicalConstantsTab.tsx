@@ -1,0 +1,63 @@
+import { useMemo } from 'react'
+import { PHYSICAL_CONSTANTS } from '@/features/constants/constants'
+import CopyButton from '@/features/constants/CopyButton'
+
+export default function PhysicalConstantsTab({ query }: { query: string }) {
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return PHYSICAL_CONSTANTS
+    return PHYSICAL_CONSTANTS.filter((c) =>
+      [c.name, c.symbol, c.unit].some((s) => s.toLowerCase().includes(q)),
+    )
+  }, [query])
+
+  return (
+    <div className="space-y-4">
+      <div className="card overflow-x-auto">
+        <table className="table-grid w-full text-sm">
+          <thead className="table-head">
+            <tr>
+              <th className="text-left px-4 py-3">Quantity</th>
+              <th className="text-center px-4 py-3">Symbol</th>
+              <th className="text-center px-4 py-3">Value</th>
+              <th className="text-center px-4 py-3">Unit</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c) => (
+              <tr key={c.name} className="border-t border-[var(--line)]">
+                <td className="px-4 py-2">{c.name}</td>
+                <td className="px-4 py-2 text-center font-serif italic">
+                  {c.symbol.includes('_') ? (
+                    <>
+                      {c.symbol.split('_')[0]}
+                      <sub>{c.symbol.split('_').slice(1).join('_')}</sub>
+                    </>
+                  ) : (
+                    c.symbol
+                  )}
+                </td>
+                <td className="px-4 py-2 text-center font-mono whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1">
+                    {c.value}
+                    <CopyButton text={c.numeric} />
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-center whitespace-nowrap">{c.unit}</td>
+                <td className="px-4 py-2 text-center">{c.exact && <span className="badge badge-ok">exact</span>}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-[var(--muted)]">
+                  No match
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

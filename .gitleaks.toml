@@ -1,0 +1,12 @@
+# Secret scan config for CI (`secrets` job in .github/workflows/ci.yml). Default rules plus an allow-list
+# for test fixtures that hold obviously fake keys. Real keys live only in Railway variables.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake keys in test fixtures and documented placeholders"
+paths = [
+  '''^backend/supabase/tests/''',
+  '''^backend/functions/test/''',
+  '''^frontend/\.env\.example$''',
+]
