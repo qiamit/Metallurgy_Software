@@ -543,7 +543,7 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
                 onClick={() => editorToolbarApiRef.current?.openMmpx()}
                 className={
                   editorToolbar.mmpxActive
-                    ? "btn-secondary shrink-0 px-2.5 text-xs ring-2 ring-cyan-400/70 sm:px-3 sm:text-sm"
+                    ? "btn-secondary shrink-0 px-2.5 text-xs ring-2 ring-[var(--rt-accent)] sm:px-3 sm:text-sm"
                     : "btn-secondary shrink-0 px-2.5 text-xs sm:px-3 sm:text-sm"
                 }
               >

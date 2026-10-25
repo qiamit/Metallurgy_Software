@@ -40,7 +40,7 @@ export function RingTestShell({
     <div className="rt-shell">
       <div className="rt-topbar mb-4">
         <div className="rt-brand shrink-0">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 text-sm font-bold text-white">
+          <div className="grid h-8 w-8 place-items-center bg-[var(--rt-primary)] text-sm font-bold text-white">
             R
           </div>
           <div>

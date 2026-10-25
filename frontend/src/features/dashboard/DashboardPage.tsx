@@ -66,7 +66,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {kpis.map(([label, value]) => (
-          <div key={label} className="stat-card border-t-2 border-t-[var(--accent)]">
+          <div key={label} className="stat-card border-t-2 border-t-[var(--accent)] last:col-span-2 sm:last:col-span-1">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</div>
             <div className="mt-1 text-2xl sm:text-3xl font-semibold tabular-nums">{value}</div>
           </div>
