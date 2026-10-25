@@ -11,7 +11,7 @@ The browser talks to the `api` gateway with `supabase-js` (a protocol client onl
 | `rest` | image `postgrest/postgrest:v12.2.12` | `rest.railway.internal:3000` |
 | `storage-api` | image `supabase/storage-api:v1.24.7` → Railway Bucket | `storage-api.railway.internal:8080` |
 | `Postgres` | `ghcr.io/railwayapp-templates/postgres-ssl:18` + volume | `postgres.railway.internal:5432` |
-| `functions` | repo, root `backend/functions` (Node 22: register, members, OpenCV analysis, AI) | `functions.railway.internal:8080` |
+| `functions` | repo, root `backend/functions` (Node 22: register, members, OpenCV analysis) | `functions.railway.internal:8080` |
 | `pdf-service` | repo, root `backend/pdf-service` (Playwright HTML → PDF) | public URL |
 | `backup-job` | repo, root `backend/backup-job` (cron 02:00 IST: pg_dump + files → backup bucket) | – |
 
@@ -53,7 +53,7 @@ A live example of this exact setup is the `staging` environment (`docs/STAGING.m
 6. **rest** (PostgREST) — `PGRST_DB_URI` (as `authenticator`), `PGRST_DB_SCHEMAS=public`, `PGRST_DB_ANON_ROLE=anon`,
    `PGRST_JWT_SECRET`, `PGRST_DB_MAX_ROWS=10000`.
 7. **functions** — `NODE_ENV=production`, `AUTH_URL`, `REST_URL`, `STORAGE_URL=http://storage-api.railway.internal:8080`,
-   `SERVICE_ROLE_KEY`, optional `OPENAI_API_KEY` / `OPENAI_MODEL` (server-wide fallback when a lab has no AI key).
+   `SERVICE_ROLE_KEY`.
    Tuning: `ANALYSIS_CONCURRENCY`, `ANALYSIS_QUEUE`, `MAX_IMAGE_PIXELS`, `MAX_RING_IMAGE_BYTES` (see `docs/OPERATIONS.md`).
 8. **api** (Caddy) — `GOTRUE_UPSTREAM`, `PGRST_UPSTREAM`, `STORAGE_UPSTREAM`, `FUNCTIONS_UPSTREAM`,
    `FRONTEND_ORIGIN` (and optional `FRONTEND_ORIGIN_ALT`) for CORS. Production: `CORS_DEV_ORIGIN_REGEX=^$`

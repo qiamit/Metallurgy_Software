@@ -6,14 +6,12 @@ export type JobFilters = {
   query: string;
   module: AnalysisType | "";
   status: JobStatus | "";
-  agreement: string;
 };
 
 export const EMPTY_JOB_FILTERS: JobFilters = {
   query: "",
   module: "",
   status: "",
-  agreement: "",
 };
 
 type JobsFilterDropdownProps = {
@@ -39,7 +37,6 @@ export function JobsFilterDropdown({ filters, onChange }: JobsFilterDropdownProp
     filters.query.trim(),
     filters.module,
     filters.status,
-    filters.agreement,
   ].filter(Boolean).length;
 
   function update<K extends keyof JobFilters>(key: K, value: JobFilters[K]) {
@@ -106,20 +103,6 @@ export function JobsFilterDropdown({ filters, onChange }: JobsFilterDropdownProp
                 <option value="failed">Failed</option>
                 <option value="reviewed">Reviewed</option>
                 <option value="rejected">Rejected</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-xs text-[var(--muted)]">AI Agreement</label>
-              <select
-                className="input mt-1"
-                value={filters.agreement}
-                onChange={(e) => update("agreement", e.target.value)}
-              >
-                <option value="">All Agreements</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-                <option value="unknown">Unknown</option>
               </select>
             </div>
           </div>

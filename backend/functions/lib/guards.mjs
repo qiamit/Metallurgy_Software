@@ -39,7 +39,7 @@ export function createRateLimiter({ limit, windowMs, now = Date.now }) {
 }
 
 /**
- * Limits how many heavy tasks (OpenCV + AI) run at once; extra callers wait in a bounded queue.
+ * Limits how many heavy tasks (OpenCV) run at once; extra callers wait in a bounded queue.
  * @param {{ max: number, maxQueue: number }} opts
  */
 export function createGate({ max, maxQueue }) {
@@ -166,22 +166,12 @@ export function safeRequestId(value, fallback) {
   return /^[A-Za-z0-9._:-]{1,64}$/.test(v) ? v : fallback()
 }
 
-/**
- * Validate a base64 image payload without trusting its declared size.
- * @returns {Buffer}
- */
-export function decodeImageBase64(value, maxBytes) {
-  const raw = String(value || '').replace(/^data:[^;,]+;base64,/, '').replace(/\s+/g, '')
-  const fail = (status, message) => {
-    const err = new Error(message)
-    // @ts-ignore
-    err.statusCode = status
-    return err
-  }
-  if (!raw) throw fail(400, 'imageBase64 is required')
-  if (Math.floor((raw.length * 3) / 4) > maxBytes) {
-    throw fail(413, `Image is too large (max ${Math.round(maxBytes / 1024 / 1024)} MB)`)
-  }
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) throw fail(400, 'imageBase64 is not valid base64')
-  return Buffer.from(raw, 'base64')
+/** Strip API keys, JWTs and bearer tokens (plus one known secret) from text shown to users or logged. */
+export function redactSecrets(text, secret) {
+  let out = String(text ?? '')
+  if (secret && secret.length >= 6) out = out.split(secret).join('[redacted]')
+  return out
+    .replace(/\b(sk|pk|rk)-[A-Za-z0-9_*-]{8,}/g, '[redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]*/g, '[redacted]')
+    .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, '$1[redacted]')
 }

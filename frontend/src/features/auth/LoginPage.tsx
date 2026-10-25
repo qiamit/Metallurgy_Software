@@ -34,8 +34,8 @@ export default function LoginPage() {
         </p>
         <h1>Sign In to Your Lab Workspace</h1>
         <p className="mt-4 text-teal-100/70 max-w-sm leading-relaxed">
-          Standards-Aligned Grain Size, Inclusion, Decarburization, Micro and Macro
-          Analysis — With AI Cross-Check and Multi-Tenant RBAC.
+          Standards-Aligned Grain Size, Inclusion, Decarburization, Cast Iron, Micro and
+          Macro Analysis — Calibrated on ASTM / ISO Charts, With Multi-Tenant RBAC.
         </p>
       </div>
       <div className="auth-form-wrap">

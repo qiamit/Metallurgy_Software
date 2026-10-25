@@ -10,10 +10,6 @@ import {
   suggestInitialCircles,
 } from "@/features/ring-test/analysis";
 import { detectInnerRingFromImage, detectOuterRingFromImage } from "@/features/ring-test/analysis/detect-ring";
-import { refineAiRingGeometry } from "@/features/ring-test/analysis/ai-ring-refinement";
-import { encodeImageForAiAnalysis } from "@/features/ring-test/ai/encode-image";
-import { parseAiRingGuidance, type AiRingGuidance } from "@/features/ring-test/ai/ring-schema";
-import { callFunction } from "@/lib/functionsClient";
 import type { EditorGeometryDraft } from "@/features/ring-test/draft";
 
 export type EditMode = "inner" | "outer" | "diam" | "mmpx" | "thick" | "view";
@@ -21,15 +17,11 @@ type InnerShapeMode = "circle" | "polygon";
 
 export type RingEditorToolbarApi = {
   openMmpx: () => void;
-  runAiAnalysis: () => void;
 };
 
 export type RingEditorToolbarState = {
-  detectingAi: boolean;
-  aiStatus: string | null;
   mmpxActive: boolean;
   imgReady: boolean;
-  aiAnalysisEnabled: boolean;
 };
 
 interface Style {
@@ -90,12 +82,10 @@ interface RingEditorProps {
   saveControl?: React.ReactNode;
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>;
   onImageReplace?: (nextImageSrc: string, dims: { w: number; h: number }) => void;
-  /** Show AI Analysis tool when Super Admin enabled AI for this organization. */
-  aiAnalysisEnabled?: boolean;
-  /** Imperative mm/px + AI actions for parent header toolbar. */
+  /** Imperative mm/px action for parent header toolbar. */
   toolbarApiRef?: React.MutableRefObject<RingEditorToolbarApi | null>;
   onToolbarStateChange?: (state: RingEditorToolbarState) => void;
-  /** Hide Upload/Camera/mm/px/AI from the left tools sidebar (shown in parent header). */
+  /** Hide Upload/Camera/mm/px from the left tools sidebar (shown in parent header). */
   hideHeaderToolsInSidebar?: boolean;
   /** Overlay rendered at the bottom-right of the canvas viewport. */
   canvasOverlay?: React.ReactNode;
@@ -167,7 +157,6 @@ export function RingEditor(props: RingEditorProps) {
     snapshotRef,
     onImageReplace,
     initialGeometry = null,
-    aiAnalysisEnabled = false,
     toolbarApiRef,
     onToolbarStateChange,
     hideHeaderToolsInSidebar = false,
@@ -233,8 +222,6 @@ export function RingEditor(props: RingEditorProps) {
   const [isImageAdjustOpen, setIsImageAdjustOpen] = useState(false);
   const [detectingInner, setDetectingInner] = useState(false);
   const [detectingOuter, setDetectingOuter] = useState(false);
-  const [detectingAi, setDetectingAi] = useState(false);
-  const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [selectedPolyPoint, setSelectedPolyPoint] = useState<number | null>(null);
   const [selectedOuterPolyPoint, setSelectedOuterPolyPoint] = useState<number | null>(null);
   const [selectedPolyEdges, setSelectedPolyEdges] = useState<number[]>([]);
@@ -1514,99 +1501,6 @@ export function RingEditor(props: RingEditorProps) {
     });
   }, [imgReady, imageWidth, imageHeight, inner]);
 
-  /** Hybrid AI: provider guidance + pixel-accurate local refinement. */
-  const runAiAnalysis = useCallback(() => {
-    if (!aiAnalysisEnabled || !imageRef.current || !imgReady || imageWidth <= 0 || imageHeight <= 0) {
-      return;
-    }
-    setDetectingAi(true);
-    setAiStatus("Preparing image…");
-    closeAllRightPanels();
-
-    void (async () => {
-      try {
-        const img = imageRef.current!;
-        const encoded = await encodeImageForAiAnalysis(img, imageWidth, imageHeight, 1024, 0.82);
-        setAiStatus("AI scanning…");
-
-        let guidance: AiRingGuidance;
-        try {
-          const data = await callFunction<{ ok?: boolean; error?: string; guidance?: unknown }>("analyze-ring", {
-            organization_id: localStorage.getItem("ms_org_id"),
-            imageBase64: encoded.base64,
-            mimeType: encoded.mimeType,
-            sourceWidth: imageWidth,
-            sourceHeight: imageHeight,
-          });
-          if (!data.ok || !data.guidance) {
-            setAiStatus(data.error ?? "AI analysis failed.");
-            return;
-          }
-          guidance = parseAiRingGuidance(data.guidance);
-        } catch (err) {
-          setAiStatus(err instanceof Error ? err.message : "AI analysis failed.");
-          return;
-        }
-
-        setAiStatus("Refining edges…");
-        const refined = refineAiRingGeometry(img, guidance, imageWidth, imageHeight);
-
-        setInner(refined.inner.circle);
-        setInnerShape(
-          ensurePointOffsets({
-            mode: refined.inner.mode,
-            sides: refined.inner.sides,
-            rotationDeg: refined.inner.rotationDeg,
-            pointOffsets: refined.inner.pointOffsets,
-          }),
-        );
-        setOuter(refined.outer.circle);
-        setOuterShape(
-          ensurePointOffsets({
-            mode: refined.outer.mode,
-            sides: refined.outer.sides,
-            rotationDeg: refined.outer.rotationDeg,
-            pointOffsets: refined.outer.pointOffsets,
-          }),
-        );
-        setDiamLine(null);
-        setDiamLines(refined.diamLines);
-        setSelectedDiamLine(refined.diamLines.length ? 0 : null);
-        setSelectedPolyPoint(null);
-        setSelectedPolyEdges([]);
-        setSelectedOuterPolyPoint(null);
-        setSelectedOuterPolyEdges([]);
-        setThicknessApplied(true);
-        setThicknessAngleOffsetsDeg(
-          refined.thicknessAngleOffsetsDeg.length === T_LABELS.length
-            ? refined.thicknessAngleOffsetsDeg
-            : Array.from({ length: T_LABELS.length }, () => 0),
-        );
-        setThicknessDeltaPx(Array.from({ length: T_LABELS.length }, () => 0));
-
-        if (refined.scale) {
-          setCalibLines([refined.scale.line]);
-          setSelectedCalibLine(0);
-          setCalibRefMm(String(refined.scale.distanceMm));
-          setScaleMmPerPx(refined.scale.mmPerPx.toFixed(6));
-        }
-
-        setMode("view");
-        const confPct = Math.round(refined.confidence * 100);
-        setAiStatus(
-          refined.scale
-            ? `Done (${confPct}% confidence) · scale ${refined.scale.mmPerPx.toFixed(4)} mm/px`
-            : `Done (${confPct}% confidence)`,
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "AI analysis failed.";
-        setAiStatus(msg.slice(0, 220));
-      } finally {
-        setDetectingAi(false);
-      }
-    })();
-  }, [aiAnalysisEnabled, imgReady, imageWidth, imageHeight, closeAllRightPanels]);
-
   const toggleImageAdjust = useCallback(() => {
     if (isImageAdjustOpen) {
       setIsImageAdjustOpen(false);
@@ -1750,8 +1644,6 @@ export function RingEditor(props: RingEditorProps) {
     setIsImageAdjustOpen(false);
     setIsResetAdjustOpen(false);
     setMode("view");
-    setAiStatus(null);
-    setDetectingAi(false);
   }, []);
 
   const openResetAdjust = useCallback(() => {
@@ -1852,30 +1744,18 @@ export function RingEditor(props: RingEditorProps) {
     if (!toolbarApiRef) return;
     toolbarApiRef.current = {
       openMmpx: activateMmpxMode,
-      runAiAnalysis,
     };
     return () => {
       toolbarApiRef.current = null;
     };
-  }, [toolbarApiRef, activateMmpxMode, runAiAnalysis]);
+  }, [toolbarApiRef, activateMmpxMode]);
 
   useEffect(() => {
     onToolbarStateChange?.({
-      detectingAi,
-      aiStatus,
       mmpxActive: mode === "mmpx" || isMmpxAdjustOpen,
       imgReady,
-      aiAnalysisEnabled,
     });
-  }, [
-    onToolbarStateChange,
-    detectingAi,
-    aiStatus,
-    mode,
-    isMmpxAdjustOpen,
-    imgReady,
-    aiAnalysisEnabled,
-  ]);
+  }, [onToolbarStateChange, mode, isMmpxAdjustOpen, imgReady]);
 
   const openThicknessAdjust = useCallback(() => {
     if (!inner || !outer) return;
@@ -1995,36 +1875,6 @@ export function RingEditor(props: RingEditorProps) {
               <ModeButton current={mode} target="mmpx" onClick={activateMmpxMode} color={MMPX_LINE_COLOR}>
                 mm/px
               </ModeButton>
-              {aiAnalysisEnabled ? (
-                <div className="flex w-full flex-col gap-1">
-                  <button
-                    type="button"
-                    onClick={runAiAnalysis}
-                    disabled={detectingAi || !imageSrc || !imgReady}
-                    className={
-                      detectingAi
-                        ? "inline-flex items-center gap-2 rounded-lg border-2 border-violet-400 bg-violet-400/20 px-3 py-1.5 text-sm font-semibold text-white"
-                        : "inline-flex items-center gap-2 rounded-lg border border-violet-400/60 bg-violet-500/15 px-3 py-1.5 text-sm font-medium text-violet-100 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-40"
-                    }
-                  >
-                    <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-violet-400" />
-                    {detectingAi ? "AI Analyzing…" : "AI Analysis"}
-                  </button>
-                  {aiStatus ? (
-                    <p
-                      className={
-                        aiStatus.startsWith("Done")
-                          ? "px-1 text-[10px] leading-snug text-emerald-300/90"
-                          : detectingAi
-                            ? "px-1 text-[10px] leading-snug text-violet-200/80"
-                            : "px-1 text-[10px] leading-snug text-amber-200/90"
-                      }
-                    >
-                      {aiStatus}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
             </>
           ) : null}
           <ModeButton current={mode} target="inner" onClick={openInnerAdjust} color={style.inner.color}>

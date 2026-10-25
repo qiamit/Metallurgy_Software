@@ -5,7 +5,6 @@ import { SETTINGS_MENU, type SettingsSection } from '@/lib/appNav'
 import { LabSettingsSection } from '@/features/settings/lab/LabSettingsSection'
 import { UserManagementSection } from '@/features/settings/users/UserManagementSection'
 import { RolesSection } from '@/features/settings/roles/RolesSection'
-import { AiSettingsSection } from '@/features/settings/ai/AiSettingsSection'
 import { AuditLogSection } from '@/features/settings/audit/AuditLogSection'
 import { MyAccountSection } from '@/features/settings/account/MyAccountSection'
 
@@ -34,11 +33,6 @@ export default function SettingsPage() {
       {section === 'roles' && (
         <RequireRole min="admin">
           <RolesSection />
-        </RequireRole>
-      )}
-      {section === 'ai' && (
-        <RequireRole min="admin">
-          <AiSettingsSection />
         </RequireRole>
       )}
       {section === 'audit' && (
@@ -71,7 +65,7 @@ export default function SettingsPage() {
           <ul className="text-sm text-[var(--muted)] space-y-2 list-disc pl-5">
             <li>Use Capture Studio to Upload or Capture Microscope Images.</li>
             <li>Set Calibration Before Running Grain Size or Depth Analysis.</li>
-            <li>Software Results Are Primary; AI Comparison Is Advisory Only.</li>
+            <li>Choose the Etch Type for Grain Size: Boundary Etch (Default) or Contrast / Tint Etch.</li>
             <li>Reviewers Can Approve or Reject Jobs From the Job Detail Page.</li>
           </ul>
         </section>

@@ -11,9 +11,8 @@ What protects the app today, and the settings that must be on in Railway. Each i
 | Nobody can grant or change a role above their own; a lab always keeps at least one owner. | `functions /create-user, /update-member, /remove-member` |
 | Reviewed / rejected jobs: only an admin can edit, re-run or delete them. | migration `20261025000000`, `functions assertNotSignedOff` |
 | Inactive users are signed out and blocked server-side (`user_profiles.status = 'inactive'`). | `app_org_role`, `requireUser` |
-| AI keys are write-only: the `api_key` column is not readable by browser roles; only `api_key_hint` is. | baseline migration grants |
 | Passwords: 10–72 characters, not the email, not one repeated character — same rule in the browser, `functions` (admin-created users bypass GoTrue's own check) and GoTrue. | `lib/guards.mjs passwordProblem` |
-| AI requests go only to the fixed provider endpoints (`PROVIDER_DEFAULTS`, https); lab data picks provider and model id, never a URL. Model ids are charset-limited (code + DB check); redirects are refused; keys are redacted from errors. | `lib/ai.mjs` |
+| No AI / external model calls: AI analysis was removed (migration `20261026000200` drops `ai_settings` and the stored keys); the functions service talks only to Railway-internal services. | `server.mjs` |
 
 **Railway → auth (GoTrue) must have:**
 
@@ -49,17 +48,14 @@ GOTRUE_EXTERNAL_EMAIL_ENABLED=true               # email+password only; no OAuth
 
 - Browser: images must be png/jpg/webp/bmp/gif and ≤ 25 MB (branding: png/jpg/webp ≤ 10 MB; SVG is not allowed).
 - Storage buckets enforce MIME type and size again on the server.
-- Functions: JSON only (415 otherwise), body must be an object; 64 KB for member / job routes, 15 MB only for
-  `/analyze-ring`; names ≤ 120 chars, emails validated; images ≤ 50 MP (`MAX_IMAGE_PIXELS`). Ring photos for the AI:
-  base64 checked before decoding, ≤ 10 MB (`MAX_RING_IMAGE_BYTES`), real format read from the header with sharp
-  (png/jpeg/webp) and pixel-limited. Upstream timeouts; 5xx responses never include internal details; job error
+- Functions: JSON only (415 otherwise), body must be an object, ≤ 64 KB on every route; names ≤ 120 chars, emails
+  validated; images ≤ 50 MP (`MAX_IMAGE_PIXELS`). Upstream timeouts; 5xx responses never include internal details; job error
   text is redacted and cut to 300 chars; `X-Request-Id` is length/charset-checked before it is echoed and logged.
 - PDF HTML escapes every value (`esc()` in `lib/reportHtml.ts`); pdf-service blocks external assets except
   `PDF_ASSET_HOSTS`, renders with **JavaScript disabled** (submitted HTML cannot open WebSockets to the private
   network, which `page.route` does not see), sanitises margins / filename, runs at most `PDF_CONCURRENCY` (2)
   renders with a queue of `PDF_QUEUE` (10), and hides Chromium errors on 5xx.
-- Database: lab-writable AI model id must match `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$`, key ≤ 512 chars, lab name
-  1–200 chars, accent a hex colour (migration `20261026000000`).
+- Database: lab name 1–200 chars, accent a hex colour (migration `20261026000000`).
 
 ## 4. Transport & browser
 
@@ -78,7 +74,7 @@ GOTRUE_EXTERNAL_EMAIL_ENABLED=true               # email+password only; no OAuth
 
 ## 5. Abuse & load
 
-- Rate limits (per replica): register 5/15 min/IP; member admin 30/min/user; analysis 30/min/user; AI 10/min/user.
+- Rate limits (per replica): register 5/15 min/IP; member admin 30/min/user; analysis 30/min/user.
 - Concurrency gate: `ANALYSIS_CONCURRENCY` (default 2) analyses at once, queue of `ANALYSIS_QUEUE` (20), then 503.
 - A job already "processing" cannot be started twice (stale after 10 min).
 - Postgres `statement_timeout`: 15 s for signed-in users, 5 s for anon.

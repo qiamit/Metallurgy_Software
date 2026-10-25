@@ -7,7 +7,7 @@ export type DetectRingOptions = {
   inner?: Circle | null;
   /** Seed centre in full-image coordinates. */
   seedCenter?: { cx: number; cy: number } | null;
-  /** Optional expected radius in full-image pixels (AI/previous-fit seed). */
+  /** Optional expected radius in full-image pixels (previous-fit seed). */
   expectedRadius?: number | null;
   /** Explicit source size (preferred — matches editor coords). */
   sourceWidth?: number;
@@ -360,7 +360,7 @@ function detectRingContour(
   let maxR = halfMin * 0.85;
   if (options.expectedRadius && options.expectedRadius > 0) {
     const expectedR = options.expectedRadius * scale;
-    // Keep a generous band around the AI seed while preventing a weak hole
+    // Keep a generous band around the seed while preventing a weak hole
     // edge from falling through to the much farther outer metal edge.
     minR = Math.max(minR, expectedR * 0.58);
     maxR = Math.min(maxR, expectedR * 1.42);

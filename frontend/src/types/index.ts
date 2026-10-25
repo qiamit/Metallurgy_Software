@@ -44,13 +44,10 @@ export interface AnalysisJob {
   calibration_id?: string | null
   analysis_type: AnalysisType
   status: JobStatus
-  run_ai?: boolean
   analysis_options?: AnalysisOptions | null
   source_image_path?: string | null
   overlay_image_path?: string | null
   software_result?: Record<string, unknown> | null
-  ai_result?: Record<string, unknown> | null
-  comparison?: Record<string, unknown> | null
   error_message?: string | null
   reviewed_by?: string | null
   review_notes?: string | null

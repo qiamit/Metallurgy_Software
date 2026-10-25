@@ -33,7 +33,6 @@ interface Defaults {
   thicknessInnerGapPx: number;
   units: string;
   style?: Partial<Style>;
-  aiAnalysisEnabled?: boolean;
 }
 
 export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
@@ -103,11 +102,8 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
   const editorToolbarApiRef = useRef<RingEditorToolbarApi | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [editorToolbar, setEditorToolbar] = useState<RingEditorToolbarState>({
-    detectingAi: false,
-    aiStatus: null,
     mmpxActive: false,
     imgReady: false,
-    aiAnalysisEnabled: defaults.aiAnalysisEnabled === true,
   });
   const [cameraOn, setCameraOn] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
@@ -607,22 +603,6 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
               >
                 mm/px
               </button>
-              {editorToolbar.aiAnalysisEnabled ? (
-                <button
-                  type="button"
-                  onClick={() => editorToolbarApiRef.current?.runAiAnalysis()}
-                  disabled={editorToolbar.detectingAi || !imageSrc || !editorToolbar.imgReady}
-                  className={
-                    editorToolbar.detectingAi
-                      ? "btn-secondary shrink-0 px-2.5 text-xs ring-2 ring-violet-400/70 sm:px-3 sm:text-sm"
-                      : "btn-secondary shrink-0 px-2.5 text-xs sm:px-3 sm:text-sm"
-                  }
-                  title={editorToolbar.aiStatus ?? undefined}
-                  aria-label={editorToolbar.detectingAi ? "AI Analyzing" : "AI Analysis"}
-                >
-                  {editorToolbar.detectingAi ? "AI…" : "AI"}
-                </button>
-              ) : null}
               <button
                 type="button"
                 className="btn-primary shrink-0 px-2.5 text-xs sm:px-3 sm:text-sm"
@@ -665,7 +645,6 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
                 setImageSrc(nextImageSrc);
                 setImgDim(dims);
               }}
-              aiAnalysisEnabled={defaults.aiAnalysisEnabled === true}
               hideHeaderToolsInSidebar
               toolbarApiRef={editorToolbarApiRef}
               onToolbarStateChange={setEditorToolbar}

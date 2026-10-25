@@ -4,21 +4,17 @@ import {
   loadCv,
   decodeToBgr,
   encodeBgrToPng,
-  encodeBgrToJpeg,
   ANALYZERS,
 } from './lib/analysis.mjs'
-import sharp from 'sharp'
-import { resolveAiConfig, runAiAnalysis, compareResults, redactSecrets } from './lib/ai.mjs'
-import { analyzeRingImage } from './lib/ringAi.mjs'
 import {
   cleanEmail,
   cleanText,
   clientIp,
   createGate,
   createRateLimiter,
-  decodeImageBase64,
   isValidEmail,
   passwordProblem,
+  redactSecrets,
   retryOnNetworkError,
   safeRequestId,
 } from './lib/guards.mjs'
@@ -28,8 +24,6 @@ const REST_URL = (process.env.REST_URL || 'http://rest.railway.internal:3000').r
 const AUTH_URL = (process.env.AUTH_URL || 'http://auth.railway.internal:9999').replace(/\/$/, '')
 const STORAGE_URL = (process.env.STORAGE_URL || 'http://storage-api.railway.internal:8080').replace(/\/$/, '')
 const SERVICE_ROLE_KEY = process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
 const IS_PROD = process.env.NODE_ENV === 'production'
 const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 20000)
 // A job stuck in "processing" longer than this can be started again (crash / redeploy mid-run).
@@ -41,7 +35,7 @@ if (!SERVICE_ROLE_KEY) {
   if (IS_PROD) process.exit(1)
 }
 
-// Heavy work (OpenCV + AI) is gated; each replica runs at most ANALYSIS_CONCURRENCY at once.
+// Heavy work (OpenCV) is gated; each replica runs at most ANALYSIS_CONCURRENCY at once.
 const analysisGate = createGate({
   max: Number(process.env.ANALYSIS_CONCURRENCY || 2),
   maxQueue: Number(process.env.ANALYSIS_QUEUE || 20),
@@ -52,7 +46,6 @@ const limits = {
   register: createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 }),
   members: createRateLimiter({ limit: 30, windowMs: 60 * 1000 }),
   analysis: createRateLimiter({ limit: 30, windowMs: 60 * 1000 }),
-  ai: createRateLimiter({ limit: 10, windowMs: 60 * 1000 }),
 }
 
 /** Known per-job analysis options only (the column is lab-writable JSON). */
@@ -94,12 +87,8 @@ function httpError(statusCode, message) {
   return err
 }
 
-// Image uploads (analyze-ring) may be large; every other route only carries a few ids / names.
-const MAX_BODY_BYTES = 15 * 1024 * 1024
+// Every route only carries a few ids / names (images go to storage directly).
 const SMALL_BODY_BYTES = 64 * 1024
-// Ring photo sent to the AI provider: decoded size and pixel count (same env var as lib/analysis.mjs).
-const MAX_RING_IMAGE_BYTES = Number(process.env.MAX_RING_IMAGE_BYTES || 10 * 1024 * 1024)
-const MAX_IMAGE_PIXELS = Number(process.env.MAX_IMAGE_PIXELS || 50_000_000)
 
 function readBody(req, maxBytes = SMALL_BODY_BYTES) {
   return new Promise((resolve, reject) => {
@@ -470,38 +459,13 @@ async function patchJob(jobId, fields) {
   return Array.isArray(rows) ? rows[0] : rows
 }
 
-async function labAiConfig(orgId) {
-  const row = await restOne(
-    `/ai_settings?organization_id=eq.${encodeURIComponent(orgId)}&select=provider,model,api_key,ring_ai_enabled`,
-  )
-  return { row, config: resolveAiConfig(row, { openaiApiKey: OPENAI_API_KEY, openaiModel: OPENAI_MODEL }) }
-}
-
-async function runAiFor(job, cv, image, softwareResult) {
-  const { config } = await labAiConfig(job.organization_id)
-  const jpeg = await encodeBgrToJpeg(cv, image, 85)
-  const aiResult = await runAiAnalysis(config, job.analysis_type, jpeg.toString('base64'), softwareResult)
-  return { aiResult, comparison: compareResults(job.analysis_type, softwareResult, aiResult) }
-}
-
-async function processJob(job, { aiOnly = false } = {}) {
+async function processJob(job) {
   const { cv } = await loadCv()
   await patchJob(job.id, { status: 'processing', error_message: null })
   let image = null
   try {
     if (!job.source_image_path) throw new Error('Job has no source image')
     image = await decodeToBgr(cv, await downloadObject('job-images', job.source_image_path))
-
-    if (aiOnly) {
-      const { aiResult, comparison } = await runAiFor(job, cv, image, job.software_result)
-      return await patchJob(job.id, {
-        ai_result: aiResult,
-        comparison,
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        error_message: null,
-      })
-    }
 
     let umX = 1
     let umY = 1
@@ -530,27 +494,16 @@ async function processJob(job, { aiOnly = false } = {}) {
     const fields = {
       software_result: softwareResult,
       overlay_image_path: overlayPath,
-      ai_result: null,
-      comparison: null,
       status: 'completed',
       completed_at: new Date().toISOString(),
       error_message: null,
-    }
-    if (job.run_ai) {
-      const { aiResult, comparison } = await runAiFor(job, cv, image, softwareResult)
-      fields.ai_result = aiResult
-      fields.comparison = comparison
     }
     return await patchJob(job.id, fields)
   } catch (err) {
     // Stored on the job and shown to the lab: short, and no credentials or upstream bodies.
     const message = redactSecrets(err instanceof Error ? err.message : String(err)).slice(0, 300)
     if (!err?.statusCode) console.error(JSON.stringify({ job: job.id, error: message }))
-    // AI-only failures keep the software result usable.
-    return await patchJob(job.id, {
-      status: aiOnly && job.software_result ? 'completed' : 'failed',
-      error_message: message,
-    })
+    return await patchJob(job.id, { status: 'failed', error_message: message })
   } finally {
     if (image) image.delete()
   }
@@ -576,56 +529,6 @@ async function handleAnalyzeJob(req, res) {
   assertNotRunning(job)
   assertNotSignedOff(job, role)
   json(res, 200, { job: await analysisGate.run(() => processJob(job)) })
-}
-
-async function handleRerunAi(req, res) {
-  const body = await readBody(req)
-  const job = await loadJob(body.job_id)
-  const { user, role } = await requireOrgRole(req, job.organization_id, 'analyst')
-  enforceLimit(limits.ai, user.id)
-  assertNotRunning(job)
-  assertNotSignedOff(job, role)
-  const aiOnly = Boolean(job.software_result && job.source_image_path)
-  if (!aiOnly) job.run_ai = true
-  json(res, 200, { job: await analysisGate.run(() => processJob(job, { aiOnly })) })
-}
-
-async function handleAnalyzeRing(req, res) {
-  const body = await readBody(req, MAX_BODY_BYTES)
-  const orgId = body.organization_id
-  const { user } = await requireOrgRole(req, orgId, 'analyst')
-  enforceLimit(limits.ai, user.id)
-  const { row, config } = await labAiConfig(orgId)
-  if (!row?.ring_ai_enabled) {
-    json(res, 403, { ok: false, error: 'AI ring analysis is not enabled for this lab.' })
-    return
-  }
-  if (!config) {
-    json(res, 400, { ok: false, error: 'Add a DeepSeek or OpenAI API Key in AI Setting.' })
-    return
-  }
-  const image = decodeImageBase64(body.imageBase64, MAX_RING_IMAGE_BYTES)
-  // Read only the header: real format, and refuse decompression bombs before anything decodes it.
-  let meta
-  try {
-    meta = await sharp(image, { limitInputPixels: MAX_IMAGE_PIXELS }).metadata()
-  } catch {
-    throw httpError(400, 'Image could not be read (png, jpeg or webp only)')
-  }
-  const formats = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' }
-  const mimeType = formats[meta.format]
-  if (!mimeType) throw httpError(400, 'Image must be png, jpeg or webp')
-  if (!meta.width || !meta.height || meta.width * meta.height > MAX_IMAGE_PIXELS) {
-    throw httpError(413, `Image is too large (over ${Math.round(MAX_IMAGE_PIXELS / 1e6)} megapixels). Please downscale it.`)
-  }
-  try {
-    const guidance = await analysisGate.run(() => analyzeRingImage(config, image.toString('base64'), mimeType))
-    json(res, 200, { ok: true, guidance })
-  } catch (err) {
-    if (err?.statusCode === 503) throw err
-    const message = redactSecrets(err instanceof Error ? err.message : 'AI analysis failed.', config.apiKey)
-    json(res, 502, { ok: false, error: message.slice(0, 300) })
-  }
 }
 
 async function handleReady(_req, res) {
@@ -658,8 +561,6 @@ const routes = {
   'POST /remove-member': handleRemoveMember,
   'POST /reset-member-password': handleResetMemberPassword,
   'POST /analyze-job': handleAnalyzeJob,
-  'POST /rerun-ai': handleRerunAi,
-  'POST /analyze-ring': handleAnalyzeRing,
 }
 
 /** One JSON line per request (no bodies, no tokens) so Railway logs are searchable. */
@@ -703,7 +604,7 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
-// Analysis + AI calls can take ~90 s; keep sockets open long enough.
+// Analysis of a large image can take a while; keep sockets open long enough.
 server.requestTimeout = 150000
 server.headersTimeout = 20000
 

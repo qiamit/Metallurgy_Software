@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { hasRole } from "@/lib/roles";
-import { fetchAiSettings } from "@/features/settings/ai/aiSettingsApi";
 import { RingTestShell } from "@/features/ring-test/RingTestNav";
 import { RingTestWorkflow } from "@/features/ring-test/RingTestWorkflow";
 import {
@@ -13,26 +11,20 @@ import {
 export default function RingTestPage() {
   const [settings, setSettings] = useState<RingSettings>(DEFAULT_RING_SETTINGS);
   const [ready, setReady] = useState(false);
-  const [aiEnabled, setAiEnabled] = useState(false);
-  const { orgId, role } = useAuth();
+  const { orgId } = useAuth();
 
   useEffect(() => {
     if (!orgId) return;
     let canceled = false;
-    Promise.all([
-      loadRingSettings(orgId),
-      fetchAiSettings(orgId).catch(() => null),
-    ]).then(([s, ai]) => {
+    loadRingSettings(orgId).then((s) => {
       if (canceled) return;
       setSettings(s);
-      // AI button shows only when an admin enabled it for this lab and a key is configured.
-      setAiEnabled(Boolean(ai?.ring_ai_enabled && ai?.has_api_key) && hasRole(role, "analyst"));
       setReady(true);
     });
     return () => {
       canceled = true;
     };
-  }, [orgId, role]);
+  }, [orgId]);
 
   return (
     <RingTestShell title="New Test">
@@ -51,7 +43,6 @@ export default function RingTestPage() {
               diam: { color: settings.diam_color, width: settings.diam_width },
               thick: { color: settings.thick_color, width: settings.thick_width },
             },
-            aiAnalysisEnabled: aiEnabled,
           }}
         />
       ) : (

@@ -39,7 +39,7 @@ Never edit an applied migration — the runner refuses files whose checksum chan
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ANALYSIS_CONCURRENCY` | 2 | OpenCV/AI jobs at once per replica (≈ 300–600 MB RAM each for large images) |
+| `ANALYSIS_CONCURRENCY` | 2 | OpenCV jobs at once per replica (≈ 300–600 MB RAM each for large images) |
 | `ANALYSIS_QUEUE` | 20 | Waiting jobs before 503 |
 | `MAX_IMAGE_PIXELS` | 50000000 | Larger images are rejected |
 | `UPSTREAM_TIMEOUT_MS` | 20000 | REST / Auth call timeout |

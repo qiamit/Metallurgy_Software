@@ -17,8 +17,6 @@ export function buildJobReportHtml(opts: {
     .filter(([, v]) => typeof v === 'string' || typeof v === 'number')
     .map(([k, v]) => `<tr><td style="width:50%">${esc(k)}</td><td>${esc(v)}</td></tr>`)
     .join('')
-  const observations = String(job.ai_result?.observations ?? 'AI analysis not available.')
-  const summary = job.comparison ? String(job.comparison.summary ?? '') : ''
   const reviewed =
     job.status === 'reviewed' || job.status === 'rejected'
       ? `<tr><td><b>Review:</b></td><td>${esc(formatStatus(job.status))}${opts.reviewerName ? ` by ${esc(opts.reviewerName)}` : ''}${
@@ -43,11 +41,8 @@ export function buildJobReportHtml(opts: {
       <tr><td><b>Generated:</b></td><td>${esc(generated)} UTC</td></tr>
     </table>
     ${images}
-    <h2>Software Analysis (Primary)</h2>
+    <h2>Software Analysis</h2>
     <table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>
-    <h2>AI Advisory Analysis</h2>
-    <p>${esc(observations)}</p>
-    ${summary ? `<h2>Comparison</h2><p>${esc(summary)}</p>` : ''}
-    <p class="disclaimer">Disclaimer: Software analysis is the primary standards-oriented result. AI output is advisory only and requires qualified metallurgist review.</p>`
+    <p class="disclaimer">Software analysis per the cited standard; results require review by a qualified metallurgist.</p>`
   return wrapLabReport(opts.branding, `Report ${job.id}`, body)
 }

@@ -21,7 +21,7 @@ synthetic images with exactly known geometry instead. The chart harness scripts 
 | 0122 | Ductile iron casting quality control (graphite types, nodularity %, nodule size, matrix) | Nodularity calibration |
 | 0135 | ASTM A247 graphite rating: form I–VII, distribution, flake size 2–8, nodule size 4–7 | Nodule size, graphite form |
 | 0138 | ASTM A247 Plate I flake size 1–8 (drawn + photos), Plate II flake types A–E | Flake size calibration |
-| 0136 | Grey iron rating chart: graphite types A–F, size, % pearlite, carbides | Reference / AI prompt |
+| 0136 | Grey iron rating chart: graphite types A–F, size, % pearlite, carbides | Reference |
 | 0137 | SG iron casting defects atlas | Reference (qualitative) |
 | 0127 | ASTM E140 hardness conversion tables (hardened and soft) | Hardness Conversion module data |
 | 0131 | Fe–Fe₃C phase diagram | Fe–C Phase Diagram module |

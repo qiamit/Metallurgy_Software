@@ -4,8 +4,8 @@ import { removeLabFiles, uploadLabFile } from '@/lib/storage'
 import type { AnalysisJob, AnalysisOptions, AnalysisType, DashboardStats } from '@/types'
 
 const JOB_COLUMNS =
-  'id, organization_id, sample_id, calibration_id, analysis_type, status, run_ai, analysis_options, source_image_path, ' +
-  'overlay_image_path, software_result, ai_result, comparison, error_message, reviewed_by, review_notes, ' +
+  'id, organization_id, sample_id, calibration_id, analysis_type, status, analysis_options, source_image_path, ' +
+  'overlay_image_path, software_result, error_message, reviewed_by, review_notes, ' +
   'reviewed_at, created_at, completed_at'
 
 export async function fetchDashboardStats(orgId: string): Promise<DashboardStats> {
@@ -31,13 +31,12 @@ export async function fetchJob(id: string): Promise<AnalysisJob | null> {
   return (data as unknown as AnalysisJob) ?? null
 }
 
-/** Upload the image, create a pending job, then run the software (+AI) analysis on the functions service. */
+/** Upload the image, create a pending job, then run the software analysis on the functions service. */
 export async function createAndRunJob(params: {
   orgId: string
   sampleId: string
   analysisType: AnalysisType
   calibrationId: string | null
-  runAi: boolean
   analysisOptions?: AnalysisOptions
   image: Blob
 }): Promise<AnalysisJob> {
@@ -51,7 +50,6 @@ export async function createAndRunJob(params: {
       sample_id: params.sampleId,
       calibration_id: params.calibrationId,
       analysis_type: params.analysisType,
-      run_ai: params.runAi,
       analysis_options: params.analysisOptions ?? {},
       source_image_path: path,
       created_by: auth.user?.id,
@@ -66,18 +64,12 @@ export async function createAndRunJob(params: {
   return job
 }
 
-export async function rerunAi(jobId: string): Promise<AnalysisJob> {
-  const { job } = await callFunction<{ job: AnalysisJob }>('rerun-ai', { job_id: jobId })
-  return job
-}
-
 /** Change module / calibration and re-run the software analysis. */
 export async function updateJobAndRerun(
   jobId: string,
   fields: {
     analysis_type: AnalysisType
     calibration_id: string | null
-    run_ai: boolean
     analysis_options?: AnalysisOptions
   },
 ): Promise<AnalysisJob> {

@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { objectDataUrl, signedUrl } from "@/lib/storage";
 import { downloadPdfViaPlaywright } from "@/lib/playwrightPdfClient";
 import { ANALYSIS_LABELS, type AnalysisJob, type AnalysisType, type Calibration } from "@/types";
-import { fetchJob, rerunAi, reviewJob, updateJobAndRerun } from "@/features/analysis/analysisApi";
+import { fetchJob, reviewJob, updateJobAndRerun } from "@/features/analysis/analysisApi";
 import { fetchCalibrations } from "@/features/calibrations/calibrationsApi";
 import { loadLabBranding } from "@/features/settings/labSettingsApi";
 import { buildJobReportHtml } from "@/features/analysis/buildJobReportHtml";
@@ -26,15 +26,12 @@ export default function JobDetailPage() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [overlayUrl, setOverlayUrl] = useState("");
   const [error, setError] = useState("");
-  const [aiBusy, setAiBusy] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [reviewNotes, setReviewNotes] = useState("");
-  const [aiNotice, setAiNotice] = useState("");
   const [calibrations, setCalibrations] = useState<Calibration[]>([]);
   const [editType, setEditType] = useState<AnalysisType>("grain_size");
   const [editCalibration, setEditCalibration] = useState("");
-  const [editRunAi, setEditRunAi] = useState(true);
   const [editEtch, setEditEtch] = useState<"line" | "contrast">("line");
   const [editBusy, setEditBusy] = useState(false);
 
@@ -46,7 +43,6 @@ export default function JobDetailPage() {
     setJob(data);
     setEditType(data.analysis_type);
     setEditCalibration(data.calibration_id ?? "");
-    setEditRunAi(data.run_ai ?? true);
     setEditEtch(data.analysis_options?.etch === "contrast" ? "contrast" : "line");
     const [src, ov, sample, reviewer] = await Promise.all([
       signedUrl("job-images", data.source_image_path),
@@ -77,26 +73,6 @@ export default function JobDetailPage() {
     if (editMode && orgId) fetchCalibrations(orgId).then(setCalibrations).catch(() => setCalibrations([]));
   }, [editMode, orgId]);
 
-  async function retryAi() {
-    if (!job || aiBusy) return;
-    if (!job.source_image_path) {
-      setError("Cannot Retry AI — Source Image Is Missing for This Job.");
-      return;
-    }
-    setAiBusy(true);
-    setError("");
-    setAiNotice("Retrying AI analysis… This may take up to a minute.");
-    try {
-      await applyJob(await rerunAi(job.id));
-      setAiNotice("AI analysis updated.");
-    } catch (e) {
-      setAiNotice("");
-      setError(e instanceof Error ? e.message : "Retry Failed");
-    } finally {
-      setAiBusy(false);
-    }
-  }
-
   async function review(approve: boolean) {
     if (!job || reviewBusy) return;
     setReviewBusy(true);
@@ -120,7 +96,6 @@ export default function JobDetailPage() {
         await updateJobAndRerun(job.id, {
           analysis_type: editType,
           calibration_id: editCalibration || null,
-          run_ai: editRunAi,
           analysis_options: editType === "grain_size" ? { etch: editEtch } : {},
         }),
       );
@@ -155,11 +130,6 @@ export default function JobDetailPage() {
     return <div className="text-[var(--muted)]">{error || "Loading Job…"}</div>;
   }
 
-  const deltas = (job.comparison?.deltas || {}) as Record<
-    string,
-    { software: number; ai: number; absolute_diff: number }
-  >;
-
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -175,16 +145,6 @@ export default function JobDetailPage() {
           <button className="btn btn-ghost" disabled={pdfBusy} onClick={downloadPdf} type="button">
             {pdfBusy ? "Preparing PDF…" : "Download PDF Report"}
           </button>
-          {canAnalyze && (
-            <button
-              className="btn btn-primary"
-              disabled={aiBusy || !job.source_image_path}
-              onClick={retryAi}
-              type="button"
-            >
-              {aiBusy ? "Retrying…" : "Retry AI Analysis"}
-            </button>
-          )}
           {canAnalyze && !editMode && (
             <button className="btn btn-ghost" onClick={() => setSearchParams({ edit: "1" })} type="button">
               Edit
@@ -194,7 +154,6 @@ export default function JobDetailPage() {
       </div>
 
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-      {aiNotice && !error && <p className="text-sm text-[var(--accent)]">{aiNotice}</p>}
       {job.error_message && (
         <p className="card p-4 text-sm text-[var(--danger)]">{job.error_message}</p>
       )}
@@ -267,10 +226,6 @@ export default function JobDetailPage() {
                 </select>
               </label>
             )}
-            <label className="text-sm flex items-end gap-2 pb-2">
-              <input type="checkbox" checked={editRunAi} onChange={(e) => setEditRunAi(e.target.checked)} />
-              Run AI Cross-Check
-            </label>
           </div>
           <div className="flex gap-2">
             <button className="btn btn-primary" disabled={editBusy} onClick={saveEdit} type="button">
@@ -310,10 +265,10 @@ export default function JobDetailPage() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div>
         <div className="card p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Software Analysis (Primary)</h2>
+            <h2 className="font-semibold">Software Analysis</h2>
             <span className="badge badge-ok">Standards-Oriented</span>
           </div>
           <dl className="mt-4 space-y-2 text-sm">
@@ -327,67 +282,6 @@ export default function JobDetailPage() {
             )}
           </dl>
           <ResultExtras job={job} />
-        </div>
-
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">AI Analysis (Advisory)</h2>
-            <span className="badge badge-warn">Not Sole Authority</span>
-          </div>
-          <p className="mt-3 text-sm text-[var(--muted)]">
-            {String(job.ai_result?.observations || "No AI Observations.")}
-          </p>
-          <dl className="mt-4 space-y-2 text-sm">
-            {Object.entries(job.ai_result || {})
-              .filter(([k]) => !["observations", "caveats", "provider", "model", "advisory"].includes(k))
-              .map(([k, v]) =>
-                typeof v === "object" ? null : (
-                  <div key={k} className="flex justify-between gap-4 border-b border-[var(--line)] py-1.5">
-                    <dt className="text-[var(--muted)]">{k}</dt>
-                    <dd className="font-medium text-right">{String(v)}</dd>
-                  </div>
-                ),
-              )}
-          </dl>
-          {Boolean(job.ai_result?.caveats) && (
-            <p className="mt-3 text-xs text-[var(--warn)]">{String(job.ai_result?.caveats)}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="card p-5">
-        <h2 className="font-semibold">Comparison</h2>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          {String(job.comparison?.summary || "Comparison Unavailable.")}
-        </p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-[var(--muted)]">
-                <th className="py-2">Metric</th>
-                <th>Software</th>
-                <th>AI</th>
-                <th>Diff</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(deltas).map(([k, d]) => (
-                <tr key={k} className="border-t border-[var(--line)]">
-                  <td className="py-2">{k}</td>
-                  <td>{d.software}</td>
-                  <td>{d.ai}</td>
-                  <td>{d.absolute_diff}</td>
-                </tr>
-              ))}
-              {!Object.keys(deltas).length && (
-                <tr>
-                  <td colSpan={4} className="py-4 text-[var(--muted)]">
-                    No Numeric Deltas (AI May Be in Fallback Mode Without API Key).
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

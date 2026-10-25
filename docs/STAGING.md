@@ -78,3 +78,10 @@ Not yet covered: password-reset email (no SMTP on staging), Ring Test AI on real
   (GoTrue v2.174 does not revoke the newer tokens of that session — comes with the GoTrue upgrade); gateway and
   pdf-service CORS allow only the frontend origin (localhost and other `*.up.railway.app` refused); PDF needs a
   signed-in user (401 otherwise) and renders; module smoke tests and the frontend all pass.
+
+## AI analysis removed (2026-10-25)
+
+AI analysis is no longer part of the product (the AI sections above are history). Migration
+`20261026000200_remove_ai_analysis` drops `ai_settings` (including the saved DeepSeek key) and the job columns
+`run_ai`, `ai_result`, `comparison`; the functions routes `/rerun-ai` and `/analyze-ring`, the AI Setting page,
+the Ring Test AI button and the AI parts of job pages and PDF reports are gone.

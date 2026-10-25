@@ -6,8 +6,9 @@ Storage, Postgres, functions, PDF). It does not use Supabase Cloud; the browser 
 against the Railway API gateway.
 
 - Browser webcam capture + image upload, canvas editor and annotations (Capture Studio)
-- Deterministic OpenCV analysis (primary): Grain Size (ISO 643), Inclusion (ISO 4967), Decarb (ISO 3887), Micro, Macro (IS 10138)
-- Vision AI advisory cross-check (DeepSeek / OpenAI, key stored per lab on the server)
+- Deterministic OpenCV analysis, calibrated on ASTM / ISO charts: Grain Size (ASTM E112 / ISO 643), Inclusion JK
+  rating (ISO 4967 / ASTM E45), Decarb (ISO 3887), Nodularity and Graphite Flake size (ASTM A247 / E2567), Micro, Macro (IS 10138)
+- Hardness conversion (ASTM E140) and Fe–C phase diagram tools
 - Ring Test (IS 1786:2008 TMT rib measurement) with certificates
 - Periodic table with metallurgy notes
 - Roles per lab: owner / admin / reviewer / analyst / viewer (enforced by Postgres RLS)
@@ -20,7 +21,7 @@ Metallurgy Software/
 └── backend/
     ├── supabase/migrations/  # SQL migrations (+ supabase/tests: RLS tests on PGlite)
     ├── gateway/              # Caddy API gateway
-    ├── functions/            # Node 22: register, members, OpenCV.js analysis, AI
+    ├── functions/            # Node 22: register, members, OpenCV.js analysis
     ├── pdf-service/          # Playwright HTML → PDF
     ├── backup-job/           # Nightly Postgres + files backup (Railway cron)
     └── scripts/

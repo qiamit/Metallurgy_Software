@@ -900,7 +900,6 @@ export default function CapturePage() {
         sampleId: sid,
         analysisType,
         calibrationId: calibrationId || null,
-        runAi: true,
         analysisOptions: analysisType === "grain_size" ? { etch } : {},
         image: finalBlob,
       });

@@ -30,8 +30,8 @@ export default function HomePage() {
           Metallurgy Lab
         </h1>
         <p className="mt-5 max-w-2xl text-lg text-[var(--muted)] leading-relaxed">
-          Capture or Upload Microscope Images, Run Standards-Aligned Software
-          Analysis, and Cross-Check Results With AI — Built for Multi-Tenant Labs
+          Capture or Upload Microscope Images and Run Standards-Aligned Software
+          Analysis, Calibrated on ASTM / ISO Charts — Built for Multi-Tenant Labs
           With RBAC.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
@@ -51,7 +51,7 @@ export default function HomePage() {
             },
             {
               title: "Inclusion · ISO 4967",
-              body: "Type A/B/C/D/DS Heuristics With Severity Indices.",
+              body: "JK Rating of Types A/B/C/D/DS, Thin and Heavy Series.",
             },
             {
               title: "Decarb · ISO 3887",

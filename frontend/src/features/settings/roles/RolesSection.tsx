@@ -3,9 +3,9 @@ import { ANALYSIS_LABELS, type AnalysisType } from '@/types'
 
 const PERMISSIONS: [string, string][] = [
   ['Viewer', 'Dashboard, calibrations, samples, jobs, ring tests and PDF reports (read-only)'],
-  ['Analyst', 'Capture & run analysis, create / edit calibrations and samples, re-run AI, delete jobs and ring tests'],
+  ['Analyst', 'Capture & run analysis, create / edit calibrations and samples, re-run analysis, delete jobs and ring tests'],
   ['Reviewer', 'Everything an Analyst can do, plus approve / reject jobs'],
-  ['Admin', 'Users, Laboratory Setting, AI Setting, audit log, delete calibrations and samples'],
+  ['Admin', 'Users, Laboratory Setting, audit log, delete calibrations and samples'],
   ['Owner', 'Everything, including granting the Owner role'],
 ]
 

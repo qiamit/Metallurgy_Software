@@ -59,7 +59,7 @@ export default function DashboardPage() {
           Open Capture Studio
         </Link>
         <Link to="/app/analysis?view=jobs" className="btn btn-ghost">
-          View Jobs & AI Compare
+          View Jobs
         </Link>
       </div>
     </div>

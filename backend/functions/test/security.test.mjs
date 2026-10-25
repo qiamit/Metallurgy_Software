@@ -1,46 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { PROVIDER_DEFAULTS, redactSecrets, resolveAiConfig } from '../lib/ai.mjs'
 import {
   cleanText,
-  decodeImageBase64,
   isValidEmail,
   passwordProblem,
+  redactSecrets,
   safeRequestId,
 } from '../lib/guards.mjs'
-
-const env = { openaiApiKey: '', openaiModel: '' }
-const allowedUrls = new Set(Object.values(PROVIDER_DEFAULTS).map((p) => p.baseUrl))
-
-test('AI endpoint always comes from the fixed provider list (no SSRF via lab settings)', () => {
-  const hostile = [
-    { provider: 'http://169.254.169.254/latest', model: 'x', api_key: 'sk-lab' },
-    { provider: '__proto__', model: 'x', api_key: 'sk-lab' },
-    { provider: 'constructor', model: 'x', api_key: 'sk-lab' },
-    { provider: 'deepseek', model: 'x', api_key: 'sk-lab', baseUrl: 'http://internal', base_url: 'http://internal' },
-  ]
-  for (const row of hostile) {
-    const cfg = resolveAiConfig(row, env)
-    assert.ok(allowedUrls.has(cfg.baseUrl), `${row.provider} -> ${cfg.baseUrl}`)
-    assert.ok(cfg.baseUrl.startsWith('https://'))
-  }
-})
-
-test('AI model id is limited to a safe charset; bad values fall back to the default', () => {
-  const ok = resolveAiConfig({ provider: 'openai', model: 'gpt-4o-mini', api_key: 'sk-lab' }, env)
-  assert.equal(ok.model, 'gpt-4o-mini')
-  for (const model of ['', 'a b', 'x'.repeat(200), 'model\nx', '"><script>']) {
-    const cfg = resolveAiConfig({ provider: 'openai', model, api_key: 'sk-lab' }, env)
-    assert.equal(cfg.model, PROVIDER_DEFAULTS.openai.model, JSON.stringify(model))
-  }
-})
-
-test('server-wide key is always provider openai', () => {
-  const cfg = resolveAiConfig(null, { openaiApiKey: 'sk-server', openaiModel: 'gpt-4o-mini' })
-  assert.equal(cfg.provider, 'openai')
-  assert.equal(cfg.baseUrl, PROVIDER_DEFAULTS.openai.baseUrl)
-  assert.equal(resolveAiConfig(null, env), null)
-})
 
 test('redactSecrets removes keys and bearer tokens', () => {
   // Built at runtime so the secret scanner does not flag test fixtures.
@@ -78,11 +44,3 @@ test('request id: safe values kept, anything else replaced', () => {
   assert.equal(safeRequestId(undefined, () => 'new'), 'new')
 })
 
-test('base64 image: size checked before decoding, charset validated', () => {
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64')
-  assert.equal(decodeImageBase64(png, 1024).length, 4)
-  assert.equal(decodeImageBase64(`data:image/png;base64,${png}`, 1024).length, 4)
-  assert.throws(() => decodeImageBase64('', 1024), (err) => err.statusCode === 400)
-  assert.throws(() => decodeImageBase64('A'.repeat(4000), 1024), (err) => err.statusCode === 413)
-  assert.throws(() => decodeImageBase64('not base64!', 1024), (err) => err.statusCode === 400)
-})

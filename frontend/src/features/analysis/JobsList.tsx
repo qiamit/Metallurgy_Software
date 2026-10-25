@@ -43,17 +43,12 @@ export function JobsList({ filters }: { filters?: JobFilters }) {
     if (!filters) return true;
     if (filters.module && job.analysis_type !== filters.module) return false;
     if (filters.status && job.status !== filters.status) return false;
-    if (filters.agreement) {
-      const agreement = String(job.comparison?.agreement || "unknown").toLowerCase();
-      if (agreement !== filters.agreement.toLowerCase()) return false;
-    }
     if (filters.query.trim()) {
       const q = filters.query.trim().toLowerCase();
       const haystack = [
         job.id,
         ANALYSIS_LABELS[job.analysis_type],
         job.status,
-        String(job.comparison?.agreement || ""),
         new Date(job.created_at).toLocaleString(),
       ]
         .join(" ")
@@ -157,14 +152,11 @@ export function JobsList({ filters }: { filters?: JobFilters }) {
               <th className="text-left px-4 py-3">Created</th>
               <th className="text-left px-4 py-3">Module</th>
               <th className="text-left px-4 py-3">Status</th>
-              <th className="text-left px-4 py-3">Agreement</th>
               <th className="text-left px-4 py-3">Action</th>
             </tr>
           </thead>
           <tbody>
             {filteredJobs.map((job) => {
-              const agreement =
-                (job.comparison?.agreement as string | undefined) || "—";
               const isDeleting = deletingId === job.id;
               return (
                 <tr key={job.id} className="border-t border-[var(--line)]">
@@ -186,7 +178,6 @@ export function JobsList({ filters }: { filters?: JobFilters }) {
                   <td className="px-4 py-3">
                     <span className={statusBadge(job.status)}>{formatStatus(job.status)}</span>
                   </td>
-                  <td className="px-4 py-3">{formatStatus(agreement)}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       <Link
@@ -220,7 +211,7 @@ export function JobsList({ filters }: { filters?: JobFilters }) {
             })}
             {!filteredJobs.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={5} className="px-4 py-8 text-[var(--muted)]">
                   {jobs.length
                     ? "No Jobs Match Your Search or Filters."
                     : "No Jobs Yet. Run an Analysis From Capture Studio."}

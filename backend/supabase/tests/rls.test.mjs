@@ -32,9 +32,8 @@ await q(`INSERT INTO public.memberships (organization_id, user_id, role) VALUES 
 const u4 = (await q(`INSERT INTO auth.users (email) VALUES ('analyst@a.com') RETURNING id`))[0].id
 await q(`INSERT INTO public.memberships (organization_id, user_id, role) VALUES ($1, $2, 'analyst')`, [orgA, u4])
 console.log('slugs', (await q(`SELECT slug FROM public.organizations ORDER BY created_at`)).map(r => r.slug))
-console.log('settings rows', (await q(`SELECT (SELECT count(*) FROM lab_settings) l, (SELECT count(*) FROM ai_settings) a, (SELECT count(*) FROM ring_test_settings) r`))[0])
+console.log('settings rows', (await q(`SELECT (SELECT count(*) FROM lab_settings) l, (SELECT count(*) FROM ring_test_settings) r`))[0])
 const calB = (await q(`INSERT INTO calibrations (organization_id, name, objective, um_per_px_x, um_per_px_y) VALUES ($1,'10X','10X',0.65,0.65) RETURNING id`, [orgB]))[0].id
-await q(`UPDATE ai_settings SET api_key = 'sk-secret-1234' WHERE organization_id = $1`, [orgA])
 
 async function as(user, fn) {
   await db.exec(`SET ROLE authenticated; SELECT set_config('request.jwt.claim.sub', '${user}', false);`)
@@ -51,9 +50,8 @@ await as(u1, async () => {
   const job = (await q(`INSERT INTO analysis_jobs (organization_id, sample_id, analysis_type, created_by) VALUES ($1,$2,'grain_size',$3) RETURNING id`, [orgA, s, u1]))[0].id
   check('insert completed job rejected', await fails(() => q(`INSERT INTO analysis_jobs (organization_id, sample_id, analysis_type, status, created_by) VALUES ($1,$2,'micro','completed',$3)`, [orgA, s, u1])))
   check('analyst cannot set status directly', await fails(() => q(`UPDATE analysis_jobs SET status='reviewed' WHERE id=$1`, [job])))
-  check('api_key not readable', await fails(() => q(`SELECT api_key FROM ai_settings`)))
-  const ai = (await q(`SELECT has_api_key, api_key_hint FROM ai_settings`))[0]
-  check('has_api_key + hint visible', ai.has_api_key === true && ai.api_key_hint === '••••1234')
+  check('AI analysis removed: no ai_settings table', await fails(() => q(`SELECT 1 FROM ai_settings`)))
+  check('AI analysis removed: no AI job columns', await fails(() => q(`SELECT ai_result FROM analysis_jobs`)))
   await q(`SELECT review_analysis_job($1, true, 'ok')`, [job])
   check('review rpc sets reviewed', (await q(`SELECT status FROM analysis_jobs WHERE id=$1`, [job]))[0].status === 'reviewed')
   const stats = (await q(`SELECT org_dashboard_stats($1) s`, [orgA]))[0].s
@@ -94,7 +92,6 @@ await as(u2, async () => {
 await as(u1, async () => {
   check('admin cannot edit audit log', await fails(() => q(`UPDATE audit_log SET action = 'X'`)))
   check('admin cannot delete audit log', await fails(() => q(`DELETE FROM audit_log`)))
-  check('lab model id with spaces rejected', await fails(() => q(`UPDATE ai_settings SET model = 'bad model' WHERE organization_id = $1`, [orgA])))
 })
 await db.exec(`SET ROLE service_role`)
 try {

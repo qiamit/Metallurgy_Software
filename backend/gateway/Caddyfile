@@ -1,7 +1,7 @@
 {
   auto_https off
   servers {
-    # Slow-client / idle limits (analysis + AI calls can take ~90 s upstream).
+    # Slow-client / idle limits (a large image analysis can take a while upstream).
     timeouts {
       read_header 15s
       idle 2m
@@ -10,7 +10,7 @@
 }
 
 :80 {
-  # Largest legitimate request: a 25 MB storage upload (bucket limit). functions caps JSON at 15 MB itself.
+  # Largest legitimate request: a 25 MB storage upload (bucket limit). functions caps JSON at 64 KB itself.
   request_body {
     max_size 30MB
   }
