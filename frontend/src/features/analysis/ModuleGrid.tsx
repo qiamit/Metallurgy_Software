@@ -4,7 +4,7 @@ import { ANALYSIS_LABELS, type AnalysisType } from '@/types'
 
 type Module = { key: AnalysisType | 'ring_test'; label: string; standard: string; icon: LucideIcon; to: string }
 
-export const ANALYSIS_MODULES: Module[] = [
+const ANALYSIS_MODULES: Module[] = [
   { key: 'grain_size', label: ANALYSIS_LABELS.grain_size, standard: 'ASTM E112 · ISO 643', icon: Hexagon, to: '/app/capture?type=grain_size' },
   { key: 'inclusion', label: ANALYSIS_LABELS.inclusion, standard: 'ISO 4967 · ASTM E45', icon: Spline, to: '/app/capture?type=inclusion' },
   { key: 'decarb', label: ANALYSIS_LABELS.decarb, standard: 'ISO 3887', icon: Layers, to: '/app/capture?type=decarb' },

@@ -47,18 +47,18 @@ export function GlobalLayout() {
   // Desktop: docked sidebar, shown / hidden (remembered). Mobile & tablet: off-canvas drawer.
   const isDesktop = useIsDesktop()
   const [dockedOpen, setDockedOpen] = useState(readSidebarOpen)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  // The drawer remembers the page it was opened on, so navigating closes it.
+  const [drawerOpenAt, setDrawerOpenAt] = useState<string | null>(null)
+  const drawerOpen = drawerOpenAt === pathname
+  const setDrawerOpen = (open: boolean) => setDrawerOpenAt(open ? pathname : null)
   const sidebarOpen = isDesktop ? dockedOpen : drawerOpen
   const setSidebarOpen = (open: boolean) => (isDesktop ? setDockedOpen(open) : setDrawerOpen(open))
   const [createOpen, setCreateOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // close the drawer when navigating
-  useEffect(() => setDrawerOpen(false), [pathname])
-
   useEffect(() => {
     if (!drawerOpen) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDrawerOpen(false)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDrawerOpenAt(null)
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [drawerOpen])
@@ -92,7 +92,7 @@ export function GlobalLayout() {
   return (
     <div className="min-h-screen flex bg-[var(--bg)] text-[var(--ink)]">
       {!isDesktop && drawerOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setDrawerOpen(false)} aria-hidden />
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setDrawerOpenAt(null)} aria-hidden />
       )}
       <aside
         className={
