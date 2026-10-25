@@ -60,3 +60,29 @@ test('a single large globule is DS', async () => {
   img.delete(); overlay.delete()
   assert.equal(result.ds_rating, 1.5, result.jk_summary) // 27 ≤ 30 < 38
 })
+
+test('thin/heavy series uses a blur-independent width: a blurred 3 µm sulphide stays thin', async () => {
+  const { cv } = await loadCv()
+  const grey = new cv.Scalar(90, 90, 90, 255) // sulphide tone (mid-grey)
+  const make = (wPx) => {
+    const img = field(cv, (m) => {
+      for (const [x, y0] of [[200, 100], [400, 200]]) cv.rectangle(m, new cv.Point(x, y0), new cv.Point(x + wPx - 1, y0 + 199), grey, -1)
+      cv.circle(m, new cv.Point(600, 600), 12, black(cv), -1) // a dark reference particle (full contrast)
+    })
+    const blurred = new cv.Mat()
+    cv.GaussianBlur(img, blurred, new cv.Size(0, 0), 1.5) // optics / focus blur widens the thresholded line
+    img.delete()
+    return blurred
+  }
+  const thin = make(3)
+  const r1 = analyzeInclusion(cv, thin, UM_PER_PX, UM_PER_PX)
+  thin.delete(); r1.overlay.delete()
+  const a1 = r1.result.inclusions.filter((i) => i.type === 'A' || i.type === 'C')
+  assert.ok(a1.length >= 2, r1.result.jk_summary)
+  assert.ok(a1.every((i) => i.series === 'thin'), JSON.stringify(a1))
+  const heavy = make(9)
+  const r2 = analyzeInclusion(cv, heavy, UM_PER_PX, UM_PER_PX)
+  heavy.delete(); r2.overlay.delete()
+  const a2 = r2.result.inclusions.filter((i) => i.type === 'A' || i.type === 'C')
+  assert.ok(a2.length >= 2 && a2.every((i) => i.series === 'heavy'), JSON.stringify(a2))
+})

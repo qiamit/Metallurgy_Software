@@ -177,6 +177,77 @@ function largestComponent(cv, mask) {
   }
 }
 
+const N8 = (w) => [-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1]
+
+/**
+ * One seed per grain: maxima of the distance-to-boundary map, kept when they are separated from a higher
+ * maximum by a saddle lower than `ratio` × their height (a gap in a boundary is a narrow waist).
+ * Union–find flooding from the top, like computing h-maxima dynamics. Returns seed pixel indices.
+ */
+function grainSeeds(dt, w, h, ratio, minR) {
+  let maxD = 0
+  for (let p = 0; p < dt.length; p += 1) if (dt[p] > maxD) maxD = dt[p]
+  const nb = Math.ceil(maxD * 4) + 1
+  const counts = new Int32Array(nb + 1)
+  for (let p = 0; p < dt.length; p += 1) if (dt[p] >= 1) counts[Math.round(dt[p] * 4)] += 1
+  const start = new Int32Array(nb + 1)
+  for (let b = nb - 1, acc = 0; b >= 0; b -= 1) { start[b] = acc; acc += counts[b] }
+  const order = new Int32Array(start[0] + counts[0])
+  const fill = start.slice()
+  for (let p = 0; p < dt.length; p += 1) if (dt[p] >= 1) order[fill[Math.round(dt[p] * 4)]++] = p
+  const parent = new Int32Array(dt.length).fill(-1)
+  const peak = new Float32Array(dt.length)
+  const peakPix = new Int32Array(dt.length)
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] } return x }
+  const off = N8(w)
+  const seeds = []
+  for (let i = 0; i < order.length; i += 1) {
+    const p = order[i]
+    const x = p % w
+    if (x === 0 || x === w - 1 || p < w || p >= dt.length - w) continue
+    const roots = []
+    for (const o of off) { const q = p + o; if (parent[q] >= 0) { const r = find(q); if (!roots.includes(r)) roots.push(r) } }
+    parent[p] = p
+    if (!roots.length) { peak[p] = dt[p]; peakPix[p] = p; continue }
+    roots.sort((a, b) => peak[b] - peak[a])
+    const top = roots[0]
+    for (let k = 1; k < roots.length; k += 1) {
+      const r = roots[k]
+      if (peak[r] >= minR && dt[p] < ratio * peak[r]) seeds.push(peakPix[r])
+      parent[r] = top
+    }
+    parent[p] = top
+  }
+  for (let i = 0; i < order.length; i += 1) {
+    const p = order[i]
+    if (parent[p] === p && peak[p] >= minR) seeds.push(peakPix[p])
+  }
+  return seeds
+}
+
+/** Priority-flood watershed from seeds over an 8-bit elevation (boundaries high). Returns Int32 labels. */
+function floodFromSeeds(elev, w, h, seeds) {
+  const label = new Int32Array(w * h)
+  const queues = Array.from({ length: 256 }, () => [])
+  seeds.forEach((p, i) => { label[p] = i + 1; queues[elev[p]].push(p) })
+  const off = [-w, -1, 1, w]
+  for (let lvl = 0; lvl < 256; lvl += 1) {
+    const q = queues[lvl]
+    while (q.length) {
+      const p = q.pop()
+      const x = p % w
+      for (const o of off) {
+        const n = p + o
+        if (n < 0 || n >= label.length || label[n]) continue
+        if ((o === -1 && x === 0) || (o === 1 && x === w - 1)) continue
+        label[n] = label[p]
+        queues[Math.max(lvl, elev[n])].push(n)
+      }
+    }
+  }
+  return label
+}
+
 /** Typical line thickness of a mask: 2 × median distance-to-edge along its skeleton (px). */
 function lineThickness(cv, mask) {
   if (cv.countNonZero(mask) === 0) return Infinity
@@ -197,13 +268,49 @@ function lineThickness(cv, mask) {
   }
 }
 
+// Grain segmentation constants (working resolution: a typical grain spans ~40 px).
+// Tuned on ASTM E112 Plates I-B and IV (docs/CHART_CALIBRATION.md).
+const GRAIN_SEG = {
+  seedRatio: 0.7, // a distance peak is its own grain when the saddle to a higher peak is < 70 % of its height
+  seedMinR: 1.5, // px; and ≥ 0.25 × boundary width
+  seedWidthR: 0.25,
+  minPiecePx: 16, // boundary-mask pieces smaller than this are specks
+  keepPiecePx: 64, // pieces 16–64 px stay only if they enclose a grain (needles do not)
+}
+
+/** Pixels enclosed by component `i` inside its bounding box (holes). */
+function enclosedArea(lab, W0, i, left, top, bw, bh, area) {
+  const fw = bw + 2
+  const fh = bh + 2
+  const seen = new Uint8Array(fw * fh)
+  const member = (x, y) => x >= 1 && y >= 1 && x <= bw && y <= bh && lab[(top + y - 1) * W0 + left + x - 1] === i
+  const stack = [0]
+  seen[0] = 1
+  let reached = 0
+  while (stack.length) {
+    const q = stack.pop()
+    reached += 1
+    const x = q % fw
+    const y = (q - x) / fw
+    for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+      if (nx < 0 || ny < 0 || nx >= fw || ny >= fh) continue
+      const k = ny * fw + nx
+      if (seen[k] || member(nx, ny)) continue
+      seen[k] = 1
+      stack.push(k)
+    }
+  }
+  return fw * fh - reached - area
+}
+
 /**
- * Grain boundaries as a 1-px network.
+ * Grain boundaries as a closed 1-px network (marker-controlled watershed).
  * - Polarity: boundaries are the THIN connected phase (dark lines on ferrite, or light lines on
  *   McQuaid-Ehn / oxidised austenite) — decided by line thickness, not by area.
  * - A top-hat sized to the measured boundary width keeps boundaries and drops uneven illumination.
- * - Short isolated pieces (martensite needles, pits, dust) are dropped; the network spans the field.
- * Calibrated on ASTM E112 Plates I-B and IV (docs/CHART_CALIBRATION.md).
+ * - Specks and needles are dropped from the boundary mask; one seed per grain interior (distance peaks),
+ *   then the smoothed image is flooded from the seeds. Every boundary is closed: etch gaps do not merge
+ *   grains, and texture inside a grain (martensite needles, carbides) does not add boundaries.
  */
 function grainBoundaries(cv, gray) {
   const darkM = new cv.Mat()
@@ -215,6 +322,9 @@ function grainBoundaries(cv, gray) {
   const labels = new cv.Mat()
   const stats = new cv.Mat()
   const centroids = new cv.Mat()
+  const interior = new cv.Mat()
+  const dt = new cv.Mat()
+  const elev = new cv.Mat()
   let netBright = null
   let netDark = null
   try {
@@ -234,20 +344,43 @@ function grainBoundaries(cv, gray) {
     el.delete()
     cv.threshold(tophat, mask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
     cv.morphologyEx(mask, mask, cv.MORPH_CLOSE, closeK, new cv.Point(-1, -1), 1)
-    // keep pieces whose extent is ≥ 20 % of the field (the boundary network), drop needles / specks
+
+    const w = gray.cols
+    const h = gray.rows
     const n = cv.connectedComponentsWithStats(mask, labels, stats, centroids, 8)
-    const minSide = 0.2 * Math.min(gray.rows, gray.cols)
+    const big = 0.2 * Math.min(w, h)
+    const holeMin = Math.max(16, (2 * width) ** 2)
+    const lab = labels.data32S
     const keep = new Uint8Array(n)
     for (let i = 1; i < n; i += 1) {
-      const side = Math.max(stats.intAt(i, cv.CC_STAT_WIDTH), stats.intAt(i, cv.CC_STAT_HEIGHT))
-      keep[i] = side >= minSide ? 1 : 0
+      const bw = stats.intAt(i, cv.CC_STAT_WIDTH)
+      const bh = stats.intAt(i, cv.CC_STAT_HEIGHT)
+      const side = Math.max(bw, bh)
+      if (side < Math.min(big, GRAIN_SEG.minPiecePx)) continue
+      if (side >= Math.min(big, GRAIN_SEG.keepPiecePx)) { keep[i] = 1; continue }
+      const left = stats.intAt(i, cv.CC_STAT_LEFT)
+      const top = stats.intAt(i, cv.CC_STAT_TOP)
+      keep[i] = enclosedArea(lab, w, i, left, top, bw, bh, stats.intAt(i, cv.CC_STAT_AREA)) >= holeMin ? 1 : 0
     }
-    const lab = labels.data32S
     const m = mask.data
     for (let p = 0; p < lab.length; p += 1) m[p] = keep[lab[p]] ? 255 : 0
-    return { skeleton: skeletonize(cv, mask), lightBoundaries, boundaryWidthPx: width }
+
+    cv.bitwise_not(mask, interior)
+    cv.distanceTransform(interior, dt, cv.DIST_L2, 3)
+    const seeds = grainSeeds(dt.data32F, w, h, GRAIN_SEG.seedRatio, Math.max(GRAIN_SEG.seedMinR, width * GRAIN_SEG.seedWidthR))
+    cv.GaussianBlur(work, elev, new cv.Size(0, 0), Math.max(1, width / 2))
+    const region = floodFromSeeds(elev.data, w, h, seeds)
+    const skeleton = cv.Mat.zeros(h, w, cv.CV_8U)
+    const sd = skeleton.data
+    for (let y = 0; y < h - 1; y += 1) {
+      for (let x = 0; x < w - 1; x += 1) {
+        const p = y * w + x
+        if (region[p] !== region[p + 1] || region[p] !== region[p + w]) sd[p] = 255
+      }
+    }
+    return { skeleton, lightBoundaries, boundaryWidthPx: width, seeds: seeds.length }
   } finally {
-    for (const mm of [darkM, brightM, work, tophat, mask, closeK, labels, stats, centroids]) mm.delete()
+    for (const mm of [darkM, brightM, work, tophat, mask, closeK, labels, stats, centroids, interior, dt, elev]) mm.delete()
     if (netBright) netBright.delete()
     if (netDark) netDark.delete()
   }
@@ -379,6 +512,17 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       m = measureGrains(cv, work, um0 / scale)
       passes += 1
     }
+    // very fine grains: work above native resolution so each grain interior still holds a seed
+    const maxUp = 2
+    if (m.interceptPx < GRAIN_TARGET_INTERCEPT_PX / 1.6 && scale < maxUp) {
+      const next = Math.min(maxUp, scale * (GRAIN_TARGET_INTERCEPT_PX / 1.6 / m.interceptPx))
+      if (next > scale * 1.15) {
+        scale = next
+        cv.resize(gray, work, new cv.Size(Math.round(W * scale), Math.round(H * scale)), 0, 0, cv.INTER_CUBIC)
+        m.skeleton.delete()
+        m = measureGrains(cv, work, um0 / scale)
+      }
+    }
     const um = um0 / scale
     const meanUm = Number.isFinite(m.interceptPx) ? m.interceptPx * um : 0
     const meanMm = meanUm / 1000
@@ -390,8 +534,11 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     // grains the coarse share stayed below 7 %, and gaps in the boundary network merge a few grains.
     let duplexPct = 0
     let coarseGrains = 0
-    if (m.areas.length >= 30) {
-      const sorted = [...m.areas].sort((a, b) => a - b)
+    if (m.areas.filter((v) => v >= Math.max(30, (2.5 * m.boundaryWidthPx) ** 2)).length >= 30) {
+      // slivers along boundaries / triple points (only a few boundary widths across) are not grains:
+      // left in, they lower the median and make ordinary grains look "coarse"
+      const sliver = Math.max(30, (2.5 * m.boundaryWidthPx) ** 2)
+      const sorted = [...m.areas].filter((v) => v >= sliver).sort((a, b) => a - b)
       const median = sorted[Math.floor(sorted.length / 2)]
       const total = sorted.reduce((s, v) => s + v, 0)
       const coarse = sorted.filter((v) => v >= 8 * median)
@@ -416,7 +563,7 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
 
     const result = {
       standard: 'ASTM E112-13 / ISO 643:2019',
-      method: 'Heyn lineal intercept (primary) + Jeffries planimetric',
+      method: 'Heyn lineal intercept (primary) + Jeffries planimetric, watershed boundaries',
       grain_size_number_G: round(gIntercept, 2),
       grain_size_number_G_planimetric: round(gPlanimetric, 2),
       astm_grain_size_number: Math.round(gIntercept * 2) / 2,
@@ -436,9 +583,10 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       image_width_px: W,
       image_height_px: H,
       notes:
-        'Heyn intercept is primary (calibrated on ASTM E112 plates). Check the green boundary overlay: heavy ' +
-        'texture inside very coarse grains (e.g. martensite needles) can raise G. Duplex flagged when ≥ 10 % of ' +
-        'grain area (≥ 3 grains) is ≥ 3 G numbers coarser (ASTM E1181) — confirm on the overlay.',
+        'Heyn intercept is primary (calibrated on ASTM E112 plates). Boundaries are closed by marker-controlled ' +
+        'watershed, so etch gaps and texture inside grains are handled; twin boundaries are not separated from ' +
+        'grain boundaries — check the green overlay. Duplex flagged when ≥ 10 % of grain area (≥ 3 grains) is ' +
+        '≥ 3 G numbers coarser (ASTM E1181) — confirm on the overlay.',
     }
     return { result, overlay }
   } finally {
@@ -537,6 +685,7 @@ function rateField(particles, dir) {
   for (const g of groups.values()) {
     const span = Math.max(...g.map((x) => x.u1)) - Math.min(...g.map((x) => x.u0))
     const width = Math.max(...g.map((x) => x.p.widthUm))
+    const dWidth = Math.max(...g.map((x) => x.p.deficitWidthUm))
     const elongated = g.filter((x) => x.p.aspect >= 3)
     let type
     if (g.length >= 3 && elongated.length < g.length / 2) type = 'B'
@@ -546,9 +695,9 @@ function rateField(particles, dir) {
       type = tone > 0.35 ? 'A' : 'C'
     } else type = null
     if (type) {
-      const series = width <= JK_THIN_MAX_WIDTH[type] ? 'thin' : 'heavy'
+      const series = dWidth <= JK_THIN_MAX_WIDTH[type] ? 'thin' : 'heavy'
       totals[type][series] += span
-      inclusions.push({ type, series, length_um: round(span, 1), width_um: round(width, 1), particles: g.length, members: g })
+      inclusions.push({ type, series, length_um: round(span, 1), width_um: round(width, 1), deficit_width_um: round(dWidth, 1), particles: g.length, members: g })
     } else {
       // isolated globular particles: D, or DS when one is ≥ 13 µm
       for (const x of g) {
@@ -584,6 +733,18 @@ export function analyzeInclusion(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     const H = gray.rows
     const particles = []
     const mask = cv.Mat.zeros(H, W, cv.CV_8U)
+    // Blur-independent width: the intensity deficit (matrix − pixel) summed across a particle equals
+    // width × full contrast whatever the optics / scan blur, so width = Σ deficit / (contrast × length).
+    // Matrix level = median of the field; full contrast from the darkest particles (2nd percentile).
+    const hist = new Float64Array(256)
+    const gd = gray.data
+    for (let p = 0; p < gd.length; p += 1) hist[gd[p]] += 1
+    const pct = (q) => { let acc = 0; for (let v = 0; v < 256; v += 1) { acc += hist[v]; if (acc >= q * gd.length) return v } return 255 }
+    const matrixLevel = pct(0.5)
+    const darkLevel = Math.min(pct(0.002), otsuT * 0.6)
+    const contrast = Math.max(1, matrixLevel - darkLevel)
+    const ring = new cv.Mat()
+    const ringK = cv.Mat.ones(5, 5, cv.CV_8U)
     eachContour(cv, contours, (cnt) => {
       const areaPx = cv.contourArea(cnt)
       if (areaPx < 2) return
@@ -609,6 +770,24 @@ export function analyzeInclusion(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       const meanIn = cv.mean(roi, mroi)[0]
       roi.delete()
       mroi.delete()
+      // deficit over the particle plus a 2-px halo (where blur moved part of its darkness)
+      const pad = 3
+      const rx = Math.max(0, r.x - pad)
+      const ry = Math.max(0, r.y - pad)
+      const rr = new cv.Rect(rx, ry, Math.min(W, r.x + r.width + pad) - rx, Math.min(H, r.y + r.height + pad) - ry)
+      const mr = mask.roi(rr)
+      cv.dilate(mr, ring, ringK)
+      mr.delete()
+      const rd = ring.data
+      let deficit = 0
+      for (let yy = 0; yy < rr.height; yy += 1) {
+        for (let xx = 0; xx < rr.width; xx += 1) {
+          if (!rd[yy * rr.width + xx]) continue
+          const v = gd[(rr.y + yy) * W + rr.x + xx]
+          if (v < matrixLevel) deficit += Math.min(contrast, matrixLevel - v)
+        }
+      }
+      const deficitWidthUm = (deficit / contrast / Math.max(rw, 1)) * um
       particles.push({
         cx: rect.center.x * um,
         cy: rect.center.y * um,
@@ -617,10 +796,13 @@ export function analyzeInclusion(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
         aspect: lengthUm / Math.max(widthUm, 1e-6),
         angle,
         tone: Math.max(0, Math.min(1, (meanIn - 0) / Math.max(otsuT, 1))), // 0 = black, 1 = at threshold
+        deficitWidthUm,
         rect,
       })
     })
     mask.delete()
+    ring.delete()
+    ringK.delete()
 
     const dir = rollingDirection(particles)
     // Method A rates 0.50 mm² fields; a larger image is split into fields and the worst field counts.
@@ -974,7 +1156,7 @@ export function analyzeNodularity(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
 
 // ---------------------------------------------------------------------------
 // Graphite flakes — ASTM A247 / ISO 945-1 (grey iron)
-// Size class from the longest flakes (mean of the 5 longest), A247 Table 1 classes.
+// Size class from the 95th-percentile flake length, A247 Table 1 classes.
 // ---------------------------------------------------------------------------
 export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   const gray = new cv.Mat()
@@ -990,7 +1172,10 @@ export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     const top = lengths.slice(0, Math.min(5, lengths.length))
     const longest = top.length ? top.reduce((s, v) => s + v, 0) / top.length : 0
     const median = lengths.length ? lengths[Math.floor(lengths.length / 2)] : 0
-    const sizeClass = longest > 0 ? a247SizeClass(longest) : null
+    // Size from the 95th-percentile flake length: the longest few flakes are often touching flakes merged
+    // into one (crowded classes 7–8). On A247 Plate I this rated classes 3–8 correctly (top-5 mean: 4/8).
+    const p95 = lengths.length ? lengths[Math.min(lengths.length - 1, Math.floor(lengths.length * 0.05))] : 0
+    const sizeClass = p95 > 0 ? a247SizeClass(p95) : null
     // longest flakes cut by the field edge are longer than measured: the class is then this or coarser
     const cutByEdge = flakes
       .slice()
@@ -1028,7 +1213,10 @@ export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     const result = {
       standard: 'ASTM A247 / ISO 945-1',
       flake_size_class: sizeClass,
-      flake_size_class_note: cutByEdge ? `class ${sizeClass} or coarser (longest flakes run off the field)` : null,
+      flake_size_class_note: cutByEdge
+        ? `class ${sizeClass} or coarser: the longest flakes run off the field — rate classes 1–2 at a lower magnification (50×) or on a wider field`
+        : null,
+      flake_length_p95_um: round(p95, 1),
       longest_flakes_mean_um: round(longest, 1),
       median_flake_length_um: round(median, 1),
       flake_count: flakes.length,
@@ -1036,7 +1224,7 @@ export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       median_flake_spacing_um: round(spacing, 1),
       graphite_type_hint: typeHint,
       notes:
-        'Unetched section at 100×. Size class from the 5 longest flakes (red). Graphite type A–E is a hint ' +
+        'Unetched section at 100×. Size class from the 95th-percentile flake length; the 5 longest flakes are red. Graphite type A–E is a hint ' +
         'only — compare with the A247 Plate II chart and confirm.',
     }
     return { result, overlay }
