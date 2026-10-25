@@ -104,7 +104,7 @@ export function UserManagementSection() {
               <ChevronDown size={16} className={roleMenuOpen ? 'rotate-180' : ''} />
             </button>
             {roleMenuOpen && (
-              <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-2rem))] border border-[var(--line)] bg-white shadow-[var(--shadow-lg)] p-4">
+              <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-2rem))] border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] p-4">
                 <ul className="text-sm text-[var(--muted)] space-y-1.5">
                   {ROLE_DESCRIPTIONS.map((r) => (
                     <li key={r.role}>
@@ -130,7 +130,7 @@ export function UserManagementSection() {
             {inviteMenuOpen && (
               <form
                 onSubmit={onInvite}
-                className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(360px,calc(100vw-2rem))] border border-[var(--line)] bg-white shadow-[var(--shadow-lg)] p-5 space-y-4"
+                className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(360px,calc(100vw-2rem))] border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] p-5 space-y-4"
               >
                 {(
                   [

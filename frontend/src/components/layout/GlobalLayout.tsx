@@ -109,12 +109,11 @@ export function GlobalLayout() {
 
         <div className="sidebar-footer min-w-[272px]">
           <span className="sidebar-footer-badge">ISO Standards Aligned</span>
-          <p className="sidebar-footer-text">Metallography Analysis Workspace for Professional Laboratories.</p>
         </div>
       </aside>
 
       <main id="app-main" className="relative flex-1 min-w-0 flex flex-col">
-        <div className="relative z-30 h-[56px] shrink-0 border-b border-[var(--line)] bg-[var(--panel)]/90 backdrop-blur-md px-8 flex items-center justify-between shadow-[var(--shadow-sm)]">
+        <div className="relative z-30 h-[56px] shrink-0 border-b border-[var(--line)] bg-[var(--panel)] px-8 flex items-center justify-between shadow-[var(--shadow-sm)]">
           <div className="flex items-center gap-3 min-w-0">
             {!sidebarOpen && (
               <button
@@ -167,7 +166,7 @@ export function GlobalLayout() {
               <button
                 type="button"
                 onClick={() => setMenuOpen((open) => !open)}
-                className="flex items-center gap-2.5 rounded-none border border-[var(--line)] bg-white px-2.5 py-1.5 hover:border-[var(--accent)] transition max-w-[280px]"
+                className="flex items-center gap-2.5 rounded-none border border-[var(--line)] bg-[var(--panel)] px-2.5 py-1.5 hover:border-[var(--accent)] transition max-w-[280px]"
                 aria-expanded={menuOpen}
                 aria-haspopup="true"
               >
@@ -187,7 +186,7 @@ export function GlobalLayout() {
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(280px,calc(100vw-2rem))] rounded-none border border-[var(--line)] bg-white shadow-[var(--shadow-lg)] py-2">
+                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(280px,calc(100vw-2rem))] rounded-none border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] py-2">
                   <div className="px-4 pb-2 border-b border-[var(--line)] mb-1">
                     <div className="font-medium text-sm text-[var(--ink)]">{displayName}</div>
                     <div className="text-xs text-[var(--muted)] truncate">{user.email}</div>

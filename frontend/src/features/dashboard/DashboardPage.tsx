@@ -43,7 +43,7 @@ export default function DashboardPage() {
             <Link
               key={key}
               to={`/app/analysis?type=${key}`}
-              className="border border-[var(--line)] bg-white px-4 py-3 hover:border-[var(--accent)] transition"
+              className="border border-[var(--line)] bg-[var(--panel)] px-4 py-3 hover:border-[var(--accent)] transition"
             >
               <div className="font-medium">{ANALYSIS_LABELS[key]}</div>
               <div className="text-xs text-[var(--muted)] mt-1">

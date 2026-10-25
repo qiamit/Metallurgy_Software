@@ -142,7 +142,7 @@ export function LabSettingsSection() {
                 <img
                   src={previews[asset]}
                   alt={label}
-                  className="max-h-24 border border-[var(--line)] object-contain bg-white w-full"
+                  className="max-h-24 border border-[var(--line)] object-contain bg-[var(--panel)] w-full"
                 />
               )}
             </div>

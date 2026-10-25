@@ -242,7 +242,7 @@ export default function JobDetailPage() {
             <img
               src={sourceUrl}
               alt="Source"
-              className="w-full border border-[var(--line)] bg-white object-contain max-h-[420px]"
+              className="w-full border border-[var(--line)] bg-[var(--panel)] object-contain max-h-[420px]"
             />
           ) : (
             <p className="text-sm text-[var(--muted)] py-8 text-center">No Source Image Available.</p>
@@ -254,7 +254,7 @@ export default function JobDetailPage() {
             <img
               src={overlayUrl}
               alt="Overlay"
-              className="w-full border border-[var(--line)] bg-white object-contain max-h-[420px]"
+              className="w-full border border-[var(--line)] bg-[var(--panel)] object-contain max-h-[420px]"
             />
           ) : (
             <p className="text-sm text-[var(--muted)] py-8 text-center">No Overlay Available.</p>
