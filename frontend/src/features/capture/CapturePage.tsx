@@ -92,7 +92,7 @@ function SettingsModal({
         type="button"
       />
       <div
-        className={`relative z-10 flex max-h-[92dvh] w-full flex-col border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] ${wide ? "sm:max-w-2xl" : "sm:max-w-lg"}`}
+        className={`relative z-10 flex max-h-[92dvh] w-full flex-col border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] ${wide ? "sm:max-w-4xl" : "sm:max-w-lg"}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
