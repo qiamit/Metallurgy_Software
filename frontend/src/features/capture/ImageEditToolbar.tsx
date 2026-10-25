@@ -20,7 +20,13 @@ import {
   Plus,
   RectangleHorizontal,
   RotateCw,
+  Ruler,
   Sun,
+  SunMedium,
+  Wand2,
+  Waves,
+  Focus,
+  BarChart3,
   Type,
   ZoomIn,
   ZoomOut,
@@ -46,6 +52,8 @@ type ImageEditToolbarProps = {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onAutoLevels: () => void;
+  onAutoEnhance: () => void;
 };
 
 function ToolButton({
@@ -102,6 +110,8 @@ export function ImageEditToolbar({
   onRedo,
   canUndo,
   canRedo,
+  onAutoLevels,
+  onAutoEnhance,
 }: ImageEditToolbarProps) {
   function patch(partial: Partial<ImageAdjustments>) {
     onAdjustmentsChange({ ...adjustments, ...partial });
@@ -134,6 +144,14 @@ export function ImageEditToolbar({
             onClick={() => onToolChange("crop")}
           >
             <Crop size={16} />
+          </ToolButton>
+          <ToolButton
+            active={activeTool === "measure"}
+            disabled={disabled}
+            label="Scale — measure a known length for calibration"
+            onClick={() => onToolChange("measure")}
+          >
+            <Ruler size={16} />
           </ToolButton>
         </div>
 
@@ -314,8 +332,18 @@ export function ImageEditToolbar({
           </ToolButton>
         </div>
 
+        <div className="image-edit-bar-section">
+          <ToolButton disabled={disabled} label="Auto Enhance for the selected analysis" onClick={onAutoEnhance}>
+            <Wand2 size={16} />
+          </ToolButton>
+          <ToolButton disabled={disabled} label="Auto Levels" onClick={onAutoLevels}>
+            <BarChart3 size={16} />
+          </ToolButton>
+        </div>
+
         <div className="image-edit-bar-section mt-auto">
           <ToolButton
+            active={adjustments.grayscale}
             disabled={disabled}
             label="Grayscale"
             onClick={() => patch({ grayscale: !adjustments.grayscale })}
@@ -323,6 +351,7 @@ export function ImageEditToolbar({
             <ImageMinus size={16} />
           </ToolButton>
           <ToolButton
+            active={adjustments.invert}
             disabled={disabled}
             label="Invert Colors"
             onClick={() => patch({ invert: !adjustments.invert })}
@@ -401,6 +430,43 @@ export function ImageEditToolbar({
             onChange={(e) => patch({ whitePoint: Number(e.target.value) })}
             type="range"
             value={adjustments.whitePoint}
+          />
+        </label>
+        <label className="image-edit-slider-label" title="Gamma">
+          <SunMedium size={12} />
+          <span className="image-edit-slider-name">Gamma</span>
+          <input
+            disabled={disabled}
+            max={200}
+            min={40}
+            onChange={(e) => patch({ gamma: Number(e.target.value) })}
+            type="range"
+            value={adjustments.gamma}
+          />
+        </label>
+        <label className="image-edit-slider-label" title="Sharpen">
+          <Focus size={12} />
+          <span className="image-edit-slider-name">Sharpen</span>
+          <input
+            disabled={disabled}
+            max={100}
+            min={0}
+            onChange={(e) => patch({ sharpen: Number(e.target.value) })}
+            type="range"
+            value={adjustments.sharpen}
+          />
+        </label>
+        <label className="image-edit-slider-label" title="Denoise">
+          <Waves size={12} />
+          <span className="image-edit-slider-name">Denoise</span>
+          <input
+            disabled={disabled}
+            max={4}
+            min={0}
+            step={1}
+            onChange={(e) => patch({ denoise: Number(e.target.value) })}
+            type="range"
+            value={adjustments.denoise}
           />
         </label>
         <label className="image-edit-slider-label" title="Stroke Width">

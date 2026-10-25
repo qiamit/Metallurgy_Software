@@ -13,7 +13,7 @@ import { CalibrationTable } from '@/features/calibrations/CalibrationTable'
 import { CalibrationFooterBar } from '@/features/calibrations/CalibrationFooterBar'
 import { EMPTY_CALIBRATION, type CalibrationFormValues } from '@/features/calibrations/types'
 
-export function CalibrationMasterPage() {
+export function CalibrationMasterPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { orgId, role } = useAuth()
   const canCreate = hasRole(role, 'analyst')
   const canDelete = hasRole(role, 'admin')
@@ -98,13 +98,15 @@ export function CalibrationMasterPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      <div>
-        <h1 className="page-title">Calibration</h1>
-      </div>
+    <div className={embedded ? 'space-y-4' : 'space-y-8 max-w-5xl'}>
+      {!embedded && (
+        <div>
+          <h1 className="page-title">Calibration</h1>
+        </div>
+      )}
 
       {canCreate && (
-        <form onSubmit={onCreate} className="card p-6 grid md:grid-cols-2 gap-4">
+        <form onSubmit={onCreate} className={`grid md:grid-cols-2 gap-4 ${embedded ? 'border border-[var(--line)] p-4' : 'card p-6'}`}>
           <CalibrationFields value={form} onChange={setForm} />
           {message && (
             <p className={`text-sm md:col-span-2 ${message.ok ? 'text-[var(--ok)]' : 'text-[var(--danger)]'}`}>

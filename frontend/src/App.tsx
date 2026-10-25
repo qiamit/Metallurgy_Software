@@ -4,7 +4,6 @@ import { WorkspaceLoading } from '@/components/auth/RequireAuth'
 import {
   AnalysisPage,
   AuthenticatedShell,
-  CalibrationsPage,
   CapturePage,
   DashboardPage,
   ElementPage,
@@ -38,7 +37,7 @@ export default function App() {
           <Route path="/app" element={<AuthenticatedShell />}>
             <Route index element={<DashboardPage />} />
             <Route path="capture" element={<CapturePage />} />
-            <Route path="calibrations" element={<CalibrationsPage />} />
+            <Route path="calibrations" element={<Navigate to="/app/capture?panel=calibration&tab=manage" replace />} />
             <Route path="analysis" element={<AnalysisPage />} />
             <Route path="jobs" element={<Navigate to="/app/analysis?view=jobs" replace />} />
             <Route path="jobs/:id" element={<JobDetailPage />} />

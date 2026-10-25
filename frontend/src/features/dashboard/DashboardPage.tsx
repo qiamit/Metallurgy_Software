@@ -12,7 +12,7 @@ import { ANALYSIS_LABELS, type AnalysisJob, type DashboardStats } from "@/types"
 const ACTIONS: { to: string; label: string; icon: LucideIcon }[] = [
   { to: "/app/capture", label: "New Analysis", icon: Camera },
   { to: "/app/ring-test", label: "Ring Test", icon: CircleDot },
-  { to: "/app/calibrations", label: "Calibration", icon: Ruler },
+  { to: "/app/capture?panel=calibration", label: "Calibration", icon: Ruler },
 ];
 
 const TOOLS: { to: string; label: string; icon: LucideIcon }[] = [

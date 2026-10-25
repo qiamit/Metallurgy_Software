@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ImageEditToolbar } from "@/features/capture/ImageEditToolbar";
 import { createCalibration, fetchCalibrations } from "@/features/calibrations/calibrationsApi";
+import { CalibrationMasterPage } from "@/features/calibrations/CalibrationMasterPage";
 import { createSample, fetchSamples } from "@/features/analysis/samplesApi";
 import { createAndRunJob } from "@/features/analysis/analysisApi";
 import { hasRole } from "@/lib/roles";
@@ -20,6 +21,8 @@ import {
   DEFAULT_IMAGE_ADJUSTMENTS,
   type EditTool,
   type ImageAdjustments,
+  computeAutoLevels,
+  enhancementPreset,
   renderEditedImage,
 } from "@/features/capture/imageEditor";
 import {
@@ -30,17 +33,8 @@ import {
 } from "@/types";
 
 type SettingsPanel = "calibration" | "sample";
-type CalibrationMode = "existing" | "new";
+type CalibrationTab = "select" | "measure" | "manage";
 type SampleMode = "existing" | "new";
-
-const DEFAULT_NEW_CALIBRATION = {
-  name: "10X",
-  objective: "10X",
-  um_per_px_x: 0.65,
-  um_per_px_y: 0.65,
-  unit: "um",
-  notes: "",
-};
 
 const DEFAULT_NEW_SAMPLE = {
   sample_code: "",
@@ -67,6 +61,7 @@ const DRAWING_TOOLS: EditTool[] = [
   "fill",
   "marker",
   "eyedropper",
+  "measure",
 ];
 
 function SettingsModal({
@@ -149,8 +144,15 @@ export default function CapturePage() {
   const [sampleMode, setSampleMode] = useState<SampleMode>("existing");
   const [newSampleForm, setNewSampleForm] = useState(DEFAULT_NEW_SAMPLE);
   const [calibrationId, setCalibrationId] = useState("");
-  const [calibrationMode, setCalibrationMode] = useState<CalibrationMode>("existing");
-  const [newCalForm, setNewCalForm] = useState(DEFAULT_NEW_CALIBRATION);
+  const [calTab, setCalTab] = useState<CalibrationTab>(() =>
+    new URLSearchParams(window.location.search).get("tab") === "manage" ? "manage" : "select",
+  );
+  // Scale tool: measured line length (px, in image coordinates) and the known length it spans
+  const [measurePx, setMeasurePx] = useState<number | null>(null);
+  const [measureKnown, setMeasureKnown] = useState("100");
+  const [measureUnit, setMeasureUnit] = useState<"um" | "mm">("um");
+  const [measureName, setMeasureName] = useState("");
+  const [measureObjective, setMeasureObjective] = useState("");
   const [calSaving, setCalSaving] = useState(false);
   const [calError, setCalError] = useState("");
   const [searchParams] = useSearchParams();
@@ -173,7 +175,10 @@ export default function CapturePage() {
   const [overlayStyle, setOverlayStyle] = useState<React.CSSProperties>({ display: "none" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [activePanel, setActivePanel] = useState<SettingsPanel | null>(null);
+  // ?panel=calibration (Dashboard / old Calibration page) opens the calibration panel directly
+  const [activePanel, setActivePanel] = useState<SettingsPanel | null>(() =>
+    new URLSearchParams(window.location.search).get("panel") === "calibration" ? "calibration" : null,
+  );
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -318,16 +323,25 @@ export default function CapturePage() {
     if (id) setSampleMode("existing");
   }
 
-  async function saveNewCalibration() {
-    if (!orgId) return;
+  const measuredUmPerPx =
+    measurePx && Number(measureKnown) > 0 ? (Number(measureKnown) * (measureUnit === "mm" ? 1000 : 1)) / measurePx : null;
+
+  async function saveMeasuredCalibration() {
+    if (!orgId || !measuredUmPerPx) return;
     setCalSaving(true);
     setCalError("");
     try {
-      const created = await createCalibration(orgId, newCalForm);
+      const created = await createCalibration(orgId, {
+        name: measureName.trim() || `${measureObjective.trim() || "Scale"} ${new Date().toLocaleDateString()}`,
+        objective: measureObjective.trim() || "—",
+        um_per_px_x: Number(measuredUmPerPx.toPrecision(6)),
+        um_per_px_y: Number(measuredUmPerPx.toPrecision(6)),
+        unit: "um",
+        notes: `Measured: ${measureKnown} ${measureUnit === "mm" ? "mm" : "µm"} over ${measurePx?.toFixed(1)} px`,
+      });
       setCals((prev) => [created, ...prev]);
       setCalibrationId(created.id);
-      setCalibrationMode("existing");
-      setNewCalForm(DEFAULT_NEW_CALIBRATION);
+      setCalTab("select");
     } catch (err) {
       setCalError(err instanceof Error ? err.message : "Save Failed");
     } finally {
@@ -335,7 +349,32 @@ export default function CapturePage() {
     }
   }
 
+  async function reloadCalibrations() {
+    if (!orgId) return;
+    try {
+      const c = await fetchCalibrations(orgId);
+      setCals(c);
+      if (calibrationId && !c.some((x) => x.id === calibrationId)) setCalibrationId(c[0]?.id ?? "");
+    } catch {
+      /* keep the current list */
+    }
+  }
+
+  async function autoLevels() {
+    if (!sourceBlob) return;
+    const lv = await computeAutoLevels(sourceBlob, imageAdjustments);
+    setImageAdjustments((prev) => ({ ...prev, ...lv }));
+  }
+
+  async function autoEnhance() {
+    if (!sourceBlob) return;
+    const preset = { ...imageAdjustments, ...enhancementPreset(analysisType) };
+    const lv = await computeAutoLevels(sourceBlob, preset);
+    setImageAdjustments({ ...preset, ...lv });
+  }
+
   function closePanel() {
+    if (activePanel === "calibration") void reloadCalibrations();
     setActivePanel(null);
   }
 
@@ -500,8 +539,15 @@ export default function CapturePage() {
     restoreSnapshot();
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = strokeWidth;
-    ctx.setLineDash(activeTool === "crop" ? [8, 6] : []);
-    if (activeTool === "line") {
+    ctx.setLineDash(activeTool === "crop" || activeTool === "measure" ? [8, 6] : []);
+    if (activeTool === "measure") {
+      ctx.strokeStyle = "#facc15";
+      ctx.lineWidth = Math.max(2, strokeWidth);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    } else if (activeTool === "line") {
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
@@ -761,7 +807,8 @@ export default function CapturePage() {
       activeTool === "rectangle" ||
       activeTool === "ellipse" ||
       activeTool === "diamond" ||
-      activeTool === "crop"
+      activeTool === "crop" ||
+      activeTool === "measure"
     ) {
       drawPreviewShape(point);
     }
@@ -785,6 +832,16 @@ export default function CapturePage() {
         void applyCrop(point);
         restoreSnapshot();
         snapshotRef.current = null;
+      } else if (activeTool === "measure") {
+        const st = drawStartRef.current;
+        const len = Math.hypot(point.x - st.x, point.y - st.y);
+        restoreSnapshot();
+        snapshotRef.current = null;
+        if (len >= 5) {
+          setMeasurePx(len);
+          setCalTab("measure");
+          setActivePanel("calibration");
+        }
       } else if (
         activeTool === "line" ||
         activeTool === "arrow" ||
@@ -890,11 +947,13 @@ export default function CapturePage() {
     setError("");
     try {
       const sid = await ensureSample();
-      const finalBlob = await renderEditedImage(
-        sourceBlob,
-        imageAdjustments,
-        annotationRef.current,
-      );
+      // Analysis gets the adjusted image WITHOUT drawings (they would be measured as features), lossless
+      // PNG unless the image is very large.
+      const pixels = (imageMeta?.width ?? 0) * (imageMeta?.height ?? 0);
+      const finalBlob = await renderEditedImage(sourceBlob, imageAdjustments, null, {
+        annotations: false,
+        format: pixels > 0 && pixels <= 16_000_000 ? "png" : "jpeg",
+      });
       const job = await createAndRunJob({
         orgId,
         sampleId: sid,
@@ -926,6 +985,8 @@ export default function CapturePage() {
     onStrokeWidthChange: setStrokeWidth,
     onToolChange: setActiveTool,
     onUndo: undoAnnotation,
+    onAutoLevels: () => void autoLevels(),
+    onAutoEnhance: () => void autoEnhance(),
     strokeColor,
     strokeWidth,
   };
@@ -963,7 +1024,6 @@ export default function CapturePage() {
 
           <button
             className={`btn btn-ghost ${activePanel === "calibration" ? "border-[var(--accent)] text-[var(--accent)]" : ""}`}
-            disabled={!imageReady}
             onClick={() => openPanel("calibration")}
             type="button"
           >
@@ -1054,91 +1114,119 @@ export default function CapturePage() {
         <canvas ref={canvasRef} className="hidden" />
       </div>
 
-      {activePanel && imageReady && (
+      {activePanel && (imageReady || activePanel === "calibration") && (
         <SettingsModal
           title={PANEL_TITLES[activePanel]}
           onClose={closePanel}
-          wide={activePanel === "sample"}
+          wide={activePanel === "sample" || (activePanel === "calibration" && calTab === "manage")}
         >
           {activePanel === "calibration" && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-1 border-b border-[var(--line)]">
                 <button
-                  className={`btn btn-ghost ${calibrationMode === "existing" ? "border-[var(--accent)] text-[var(--accent)]" : ""}`}
-                  onClick={() => setCalibrationMode("existing")}
                   type="button"
+                  onClick={() => {
+                    void reloadCalibrations();
+                    setCalTab("select");
+                  }}
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${calTab === "select" ? "border-[var(--accent)] text-[var(--accent-ink)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}
                 >
-                  Old Calibration
+                  Select
                 </button>
                 <button
-                  className={`btn btn-ghost ${calibrationMode === "new" ? "border-[var(--accent)] text-[var(--accent)]" : ""}`}
-                  onClick={() => setCalibrationMode("new")}
                   type="button"
+                  onClick={() => {
+                    setCalTab("measure");
+                  }}
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${calTab === "measure" ? "border-[var(--accent)] text-[var(--accent-ink)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}
                 >
-                  New Calibration
+                  Measure
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalTab("manage");
+                  }}
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${calTab === "manage" ? "border-[var(--accent)] text-[var(--accent-ink)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}
+                >
+                  Manage
                 </button>
               </div>
 
-              {calibrationMode === "existing" ? (
-                <div>
-                  <label className="label">Select Calibration</label>
-                  <select
-                    className="input mt-1"
-                    value={calibrationId}
-                    onChange={(e) => setCalibrationId(e.target.value)}
-                  >
-                    <option value="">None (1 µm/px Default)</option>
+              {calTab === "select" && (
+                <label className="field">
+                  <span>Calibration</span>
+                  <select className="input" value={calibrationId} onChange={(e) => setCalibrationId(e.target.value)}>
+                    <option value="">None (1 µm/px)</option>
                     {cals.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} · {c.objective} · {c.um_per_px_x} µm/px
                       </option>
                     ))}
                   </select>
-                </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {(
-                    [
-                      ["name", "Name"],
-                      ["objective", "Objective"],
-                      ["um_per_px_x", "µm per px (X)"],
-                      ["um_per_px_y", "µm per px (Y)"],
-                      ["unit", "Unit"],
-                      ["notes", "Notes"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <div key={key} className={key === "notes" ? "sm:col-span-2" : ""}>
-                      <label className="label">{label}</label>
-                      <input
-                        className="input mt-1"
-                        type={key.startsWith("um_") ? "number" : "text"}
-                        step={key.startsWith("um_") ? "any" : undefined}
-                        required={key !== "notes"}
-                        value={String(newCalForm[key])}
-                        onChange={(e) =>
-                          setNewCalForm({
-                            ...newCalForm,
-                            [key]: key.startsWith("um_")
-                              ? Number(e.target.value)
-                              : e.target.value,
-                          })
-                        }
-                      />
+                </label>
+              )}
+
+              {calTab === "measure" && (
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="field">
+                      <span>Line Length</span>
+                      <div className="input flex items-center justify-between font-mono">
+                        <span>{measurePx ? `${measurePx.toFixed(1)} px` : "—"}</span>
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-[var(--accent-ink)] hover:underline disabled:opacity-40"
+                          disabled={!imageReady}
+                          onClick={() => {
+                            setActiveTool("measure");
+                            setActivePanel(null);
+                          }}
+                        >
+                          Draw Line
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                  {calError && <p className="text-sm text-[var(--danger)] sm:col-span-2">{calError}</p>}
-                  <div className="sm:col-span-2">
+                    <div className="grid grid-cols-[1fr_5.5rem] gap-2">
+                      <label className="field">
+                        <span>Known Length</span>
+                        <input className="input font-mono" inputMode="decimal" value={measureKnown} onChange={(e) => setMeasureKnown(e.target.value)} />
+                      </label>
+                      <label className="field">
+                        <span>Unit</span>
+                        <select className="input" value={measureUnit} onChange={(e) => setMeasureUnit(e.target.value as "um" | "mm")}>
+                          <option value="um">µm</option>
+                          <option value="mm">mm</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label className="field">
+                      <span>Objective</span>
+                      <input className="input" value={measureObjective} onChange={(e) => setMeasureObjective(e.target.value)} placeholder="10X" />
+                    </label>
+                    <label className="field">
+                      <span>Name</span>
+                      <input className="input" value={measureName} onChange={(e) => setMeasureName(e.target.value)} />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
+                    <div className="font-mono text-lg font-semibold text-[var(--accent-ink)]">
+                      {measuredUmPerPx ? `${measuredUmPerPx.toPrecision(5)} µm/px` : "— µm/px"}
+                    </div>
                     <button
-                      className="btn btn-primary"
-                      disabled={calSaving}
-                      onClick={saveNewCalibration}
                       type="button"
+                      className="btn btn-primary"
+                      disabled={!measuredUmPerPx || calSaving || !canAnalyze}
+                      onClick={saveMeasuredCalibration}
                     >
-                      {calSaving ? "Saving…" : "Save Calibration"}
+                      {calSaving ? "Saving…" : "Save & Use"}
                     </button>
                   </div>
+                  {calError && <p className="text-sm text-[var(--danger)]">{calError}</p>}
                 </div>
               )}
+
+              {calTab === "manage" && <CalibrationMasterPage embedded />}
             </div>
           )}
 

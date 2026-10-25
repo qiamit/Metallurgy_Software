@@ -97,7 +97,7 @@ export default function UnitConverterTab() {
         </div>
       </div>
 
-      <div className="card overflow-x-auto max-w-2xl">
+      <div className="card overflow-x-auto max-w-2xl mx-auto">
         <table className="table-grid w-full text-sm">
           <thead className="table-head">
             <tr>
