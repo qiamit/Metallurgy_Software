@@ -37,7 +37,16 @@ export default function PhysicalConstantsTab() {
             {rows.map((c) => (
               <tr key={c.name} className="border-t border-[var(--line)]">
                 <td className="px-4 py-2">{c.name}</td>
-                <td className="px-4 py-2 font-serif italic">{c.symbol}</td>
+                <td className="px-4 py-2 font-serif italic">
+                  {c.symbol.includes('_') ? (
+                    <>
+                      {c.symbol.split('_')[0]}
+                      <sub>{c.symbol.split('_').slice(1).join('_')}</sub>
+                    </>
+                  ) : (
+                    c.symbol
+                  )}
+                </td>
                 <td className="px-4 py-2 text-right font-mono whitespace-nowrap">
                   <span className="inline-flex items-center gap-1">
                     {c.value}

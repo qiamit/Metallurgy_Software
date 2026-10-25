@@ -261,7 +261,8 @@ export function Diagram({ c, t, onSelect, composition }: Props) {
               <path d={path([[0, composition.ac1], [Math.min(v.cMax, FE_C.gammaMaxC), composition.ac1]])} />
               <path
                 d={path(
-                  Array.from({ length: 41 }, (_, i) => (i / 40) * 1.2)
+                  // Ac₃ applies to hypoeutectoid steel only: stop at the eutectoid composition or at Ac₁
+                  Array.from({ length: 41 }, (_, i) => (i / 40) * FE_C.eutectoidC)
                     .map((cc) => [cc, composition.ac3(cc)] as [number, number])
                     .filter(([, tt]) => tt >= composition.ac1),
                 )}
