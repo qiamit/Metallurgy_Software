@@ -52,3 +52,14 @@ Not yet covered: password-reset email (no SMTP on staging), Ring Test AI on real
   grain size E112 I-B G 5.0 → 4.77; JK A-heavy 2 → 1.5; nodularity >90 % → 92.3 %; flake size → class 4.
   Each about 2 s.
 - Hardness Conversion (`/app/hardness`) and Fe–C Phase Diagram (`/app/phase-diagram`) render; HRC 40 → HV 393 / HBW 372.
+
+## Accuracy revision 2 + security hardening (2026-10-25, commits 7ee50e9 … 924a177)
+
+- Migrations `20261026000000_security_hardening` and `20261026000100_analysis_options` applied.
+- functions, frontend, gateway and pdf-service redeployed. Frontend CSP checked in the browser: job overlays
+  load from the gateway, no CSP violations.
+- End-to-end on staging: chart fields (grain, JK, nodularity, flake) plus real micrographs — contrast-etch
+  grain size on high-Mn austenite 1200 °C G 1.81 (paper 1.5), decarb 38Si7 complete 102.9 µm (paper 93.4),
+  fully pearlitic micro correctly flagged "not ferrite".
+- `smoke.cjs` now shows 3 expected FAILs: Python grain parity (algorithm replaced on purpose) and the two
+  "no AI key" checks (a real key is saved on staging).
