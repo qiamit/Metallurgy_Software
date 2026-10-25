@@ -98,3 +98,37 @@ export const INPUT_SCALES: Scale[] = [
   ...HARDENED_SCALES.filter((s) => s.key !== 'TS'),
   ...SOFT_SCALES.filter((s) => !['HRA', 'HRG', 'HK', 'HV', 'TS'].includes(s.key)),
 ]
+
+export const TABLE_LABELS: Record<TableId, string> = {
+  hardened: 'Hardened steel',
+  soft: 'Soft steel & non-ferrous',
+}
+
+export function getTable(id: TableId) {
+  return TABLES[id]
+}
+
+/** Index of the table row whose `scaleKey` value is closest to `value`, or -1 if the scale is not in the table. */
+export function nearestRowIndex(table: TableId, scaleKey: string, value: number): number {
+  const t = TABLES[table]
+  const col = t.scales.findIndex((s) => s.key === scaleKey)
+  if (col < 0 || !Number.isFinite(value)) return -1
+  let best = -1
+  let bestDiff = Infinity
+  t.rows.forEach((r, i) => {
+    const v = r[col]
+    if (v == null) return
+    const diff = Math.abs(v - value)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = i
+    }
+  })
+  return best
+}
+
+export type TableChoice = 'auto' | TableId
+
+export function resolveTable(choice: TableChoice, scaleKey: string, value: number): TableId {
+  return choice === 'auto' ? pickTable(scaleKey, value) : choice
+}

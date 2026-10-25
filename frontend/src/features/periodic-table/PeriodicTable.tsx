@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import {
   CATEGORY_COLORS,
@@ -17,37 +17,53 @@ import {
   unitToCelsius,
   celsiusToUnit,
   type ElementCategory,
-  type ElementPhase,
   type PeriodicElement,
   type TempUnit,
 } from "@/features/periodic-table/elementsData";
 import { ElementDetailPanel } from "@/features/periodic-table/ElementDetailPanel";
+import {
+  COLOR_MODE_LABELS,
+  formatScaleValue,
+  getLegend,
+  getTileColor,
+  HEAT_STOPS,
+  type ColorMode,
+} from "@/features/periodic-table/colorModes";
+import {
+  STEEL_ROLES,
+  STEEL_ROLE_COLORS,
+  steelRoleTags,
+} from "@/features/periodic-table/metallurgyData";
 
 function ElementCell({
   element,
   active,
   dimmed,
   tempC,
+  colorMode,
   onSelect,
 }: {
   element: PeriodicElement;
   active: boolean;
   dimmed: boolean;
   tempC: number;
+  colorMode: ColorMode;
   onSelect: (el: PeriodicElement) => void;
 }) {
   const phase = getPhaseAtTemp(element, tempC);
   const phaseStyle = PHASE_STYLES[phase];
+  const tile = getTileColor(element, colorMode, tempC);
+  const noData = tile.fill === null;
 
   return (
     <button
       type="button"
-      className={`pt-element pt-element-phase-${phase} ${active ? "pt-element-active" : ""} ${dimmed ? "pt-element-dimmed" : ""}`}
+      className={`pt-element pt-element-phase-${phase} ${noData ? "pt-element-nodata" : ""} ${active ? "pt-element-active" : ""} ${dimmed ? "pt-element-dimmed" : ""}`}
       style={{
-        backgroundColor: phaseStyle.fill,
+        backgroundColor: tile.fill ?? undefined,
         gridRow: element.gridRow,
         gridColumn: element.gridCol,
-        borderColor: phaseStyle.border,
+        borderColor: tile.border,
       }}
       onClick={() => onSelect(element)}
       title={`${element.number} ${element.name} — ${PHASE_LABELS[phase]} at ${formatTempInUnit(tempC, "C")}`}
@@ -155,6 +171,13 @@ export function PeriodicTable() {
   const [categoryFilter, setCategoryFilter] = useState<ElementCategory | null>(null);
   const [tempC, setTempC] = useState(STP_TEMP_C);
   const [tempUnit, setTempUnit] = useState<TempUnit>("C");
+  const [colorMode, setColorMode] = useState<ColorMode>("category");
+  const gridRef = useRef<HTMLDivElement>(null);
+  const legend = useMemo(() => getLegend(colorMode), [colorMode]);
+  const steelRows = useMemo(
+    () => ELEMENTS.filter((el) => STEEL_ROLES[el.symbol] !== undefined),
+    [],
+  );
 
   const displayTemp = useMemo(
     () => Math.round(celsiusToUnit(tempC, tempUnit) * 10) / 10,
@@ -164,6 +187,11 @@ export function PeriodicTable() {
   function selectElement(element: PeriodicElement) {
     setSelected(element);
     setDetailOpen(false);
+  }
+
+  function selectFromTable(element: PeriodicElement) {
+    selectElement(element);
+    gridRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function openDetail() {
@@ -225,6 +253,24 @@ export function PeriodicTable() {
                 <X size={14} />
               </button>
             )}
+          </div>
+
+          <div className="pt-category-filter">
+            <label className="sr-only" htmlFor="pt-color-select">
+              Colour by
+            </label>
+            <select
+              id="pt-color-select"
+              className="input pt-category-select"
+              value={colorMode}
+              onChange={(e) => setColorMode(e.target.value as ColorMode)}
+            >
+              {(Object.keys(COLOR_MODE_LABELS) as ColorMode[]).map((mode) => (
+                <option key={mode} value={mode}>
+                  Colour: {COLOR_MODE_LABELS[mode]}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="pt-category-filter">
@@ -300,23 +346,43 @@ export function PeriodicTable() {
               Reset STP
             </button>
 
-            <div className="pt-phase-legend shrink-0">
-              {(Object.keys(PHASE_LABELS) as ElementPhase[]).map((phase) => (
-                <span key={phase} className="pt-phase-legend-item">
+          </div>
+
+          <div className="pt-legend" aria-label={`Legend: ${COLOR_MODE_LABELS[colorMode]}`}>
+            {legend.kind === "scale" ? (
+              <span className="pt-legend-scale">
+                <span>{formatScaleValue(legend.min)}</span>
+                <span
+                  className="pt-legend-gradient"
+                  style={{ backgroundImage: `linear-gradient(to right, ${HEAT_STOPS.join(", ")})` }}
+                />
+                <span>
+                  {formatScaleValue(legend.max)} {legend.unit}
+                </span>
+              </span>
+            ) : (
+              legend.items.map((item) => (
+                <span key={item.label} className="pt-phase-legend-item">
                   <span
                     className="pt-phase-legend-swatch"
                     style={{
-                      borderColor: PHASE_STYLES[phase].border,
-                      backgroundColor: PHASE_STYLES[phase].fill,
+                      backgroundColor: item.color,
+                      borderColor: item.border ?? "rgba(15, 23, 42, 0.25)",
                     }}
                   />
-                  {PHASE_LABELS[phase]}
+                  {item.label}
                 </span>
-              ))}
-            </div>
+              ))
+            )}
+            {(legend.kind === "scale" || legend.noData) && (
+              <span className="pt-phase-legend-item">
+                <span className="pt-phase-legend-swatch pt-legend-nodata" />
+                No data
+              </span>
+            )}
           </div>
 
-          <div className="pt-grid">
+          <div className="pt-grid" ref={gridRef}>
             <div className="pt-series-label" style={{ gridRow: 6, gridColumn: 3 }}>
               57–71
             </div>
@@ -339,6 +405,7 @@ export function PeriodicTable() {
                 active={selected?.number === el.number}
                 dimmed={isDimmed(el)}
                 tempC={tempC}
+                colorMode={colorMode}
                 onSelect={selectElement}
               />
             ))}
@@ -366,12 +433,67 @@ export function PeriodicTable() {
             </div>
           )}
         </div>
-      </div>
 
-      <p className="pt-help-text">
-        Click an element to preview in the spotlight. Use &ldquo;Click for Properties &amp;
-        Metallurgy&rdquo; to open full details in the same window.
-      </p>
+        {colorMode === "steel" && (
+          <div className="card pt-steel-card">
+            <h2 className="section-title">Alloying Elements in Steel</h2>
+            <div className="pt-steel-scroll">
+              <table className="pt-steel-table">
+                <thead className="table-head">
+                  <tr>
+                    <th>Element</th>
+                    <th>Role</th>
+                    <th>Typical wt%</th>
+                    <th>Key effects</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {steelRows.map((el) => {
+                    const r = STEEL_ROLES[el.symbol];
+                    const active = selected?.number === el.number;
+                    return (
+                      <tr
+                        key={el.number}
+                        className={active ? "pt-steel-row-active" : undefined}
+                        tabIndex={0}
+                        onClick={() => selectFromTable(el)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            selectFromTable(el);
+                          }
+                        }}
+                      >
+                        <td className="pt-steel-el">
+                          <span
+                            className="pt-steel-symbol"
+                            style={{ backgroundColor: STEEL_ROLE_COLORS[r.group] }}
+                          >
+                            {el.symbol}
+                          </span>
+                          {el.name}
+                        </td>
+                        <td>
+                          <span className="pt-role-tags">
+                            {steelRoleTags(r).map((t) => (
+                              <span key={t.label} className="pt-role-tag">
+                                <i style={{ backgroundColor: STEEL_ROLE_COLORS[t.group] }} />
+                                {t.label}
+                              </span>
+                            ))}
+                          </span>
+                        </td>
+                        <td className="pt-steel-typical">{r.typical}</td>
+                        <td>{[...r.effects, ...r.cautions].slice(0, 3).join("; ")}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

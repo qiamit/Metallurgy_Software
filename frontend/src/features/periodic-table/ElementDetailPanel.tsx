@@ -13,6 +13,14 @@ import {
   type ElementCategory,
   type PeriodicElement,
 } from "@/features/periodic-table/elementsData";
+import {
+  CRYSTAL_LABELS,
+  formatLattice,
+  getMetallurgy,
+  getSteelRole,
+  STEEL_ROLE_COLORS,
+  steelRoleTags,
+} from "@/features/periodic-table/metallurgyData";
 
 export type ElementDetailViewMode = "properties" | "metallurgy";
 
@@ -51,6 +59,88 @@ function DetailSection({
   );
 }
 
+function MetallurgySection({ element }: { element: PeriodicElement }) {
+  const m = getMetallurgy(element.symbol);
+  const role = getSteelRole(element.symbol);
+  const structure = m.structure
+    ? `${CRYSTAL_LABELS[m.structure]}${m.structureNote ? ` (${m.structureNote})` : ""}`
+    : "—";
+
+  return (
+    <DetailSection title="Metallurgy" wide>
+      <dl className="pt-detail-facts pt-detail-facts-4">
+        <DetailFact label="Crystal Structure (RT)" value={structure} />
+        <DetailFact label="Lattice Parameter" value={m.lattice ? formatLattice(m.lattice) : "—"} />
+        <DetailFact
+          label="Young's Modulus"
+          value={m.youngsModulusGPa !== null ? `${m.youngsModulusGPa} GPa` : "—"}
+        />
+        <DetailFact
+          label="Thermal Conductivity"
+          value={m.thermalConductivity !== null ? `${m.thermalConductivity} W/m·K` : "—"}
+        />
+      </dl>
+
+      {m.allotropes.length > 0 && (
+        <div className="pt-detail-block">
+          <div className="pt-detail-block-label">Allotropes</div>
+          <ul className="pt-allotropes">
+            {m.allotropes.map((a, i) => (
+              <li key={a.name}>
+                <strong>{a.name}</strong>
+                <span>
+                  {CRYSTAL_LABELS[a.structure]}
+                  {a.note ? ` (${a.note})` : ""}
+                </span>
+                <span className="pt-allotrope-temp">
+                  {a.aboveC !== null
+                    ? `> ${a.approx ? "≈" : ""}${a.aboveC.toLocaleString()} °C`
+                    : i === 0
+                      ? "RT"
+                      : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {role && (
+        <div className="pt-detail-block">
+          <div className="pt-detail-block-label">Role in Steel</div>
+          <div className="pt-role-tags">
+            {steelRoleTags(role).map((t) => (
+              <span key={t.label} className="pt-role-tag">
+                <i style={{ backgroundColor: STEEL_ROLE_COLORS[t.group] }} />
+                {t.label}
+              </span>
+            ))}
+            <span className="pt-role-tag pt-role-typical">Typical {role.typical} wt%</span>
+          </div>
+          {role.effects.length > 0 && (
+            <ul className="pt-detail-bullets">
+              {role.effects.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
+          )}
+          {role.cautions.length > 0 && (
+            <ul className="pt-detail-bullets pt-detail-bullets-warn">
+              {role.cautions.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <ul className="pt-detail-bullets">
+        <li>{element.metallurgyNote}</li>
+      </ul>
+    </DetailSection>
+  );
+}
+
 export function ElementDetailBody({
   element,
   tempC,
@@ -80,8 +170,8 @@ export function ElementDetailBody({
         </div>
         <dl className="pt-detail-facts pt-detail-facts-3">
           <DetailFact label="Phase (STP)" value={stpPhase} />
-          <DetailFact label="Phase at Set Temperature" value={PHASE_LABELS[phase]} />
-          <DetailFact label="Simulator Temperature" value={formatTempInUnit(tempC, "C")} />
+          <DetailFact label="Phase at T" value={PHASE_LABELS[phase]} />
+          <DetailFact label="Temperature" value={formatTempInUnit(tempC, "C")} />
         </dl>
       </DetailSection>
 
@@ -124,14 +214,7 @@ export function ElementDetailBody({
         </dl>
       </DetailSection>
 
-      <DetailSection title="Metallurgy & Materials" wide>
-        <div className="pt-detail-prose">
-          <p>{element.metallurgyNote}</p>
-          {isMetalCategory(element.category) && (
-            <p className="pt-detail-metallurgy-transition">{transitionNote}</p>
-          )}
-        </div>
-      </DetailSection>
+      <MetallurgySection element={element} />
 
       <DetailSection title="Table Position">
         <dl className="pt-detail-facts pt-detail-facts-4">
