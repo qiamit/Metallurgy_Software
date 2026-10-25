@@ -99,6 +99,38 @@ function color(cv, b, g, r) {
   return new cv.Scalar(b, g, r, 255)
 }
 
+// ---------------------------------------------------------------------------
+// Overlay drawing: small images are enlarged so lines and markers stay fine; widths follow the overlay size
+// ---------------------------------------------------------------------------
+const OVERLAY_MIN_SIDE = 1000
+
+/** Overlay base (image, enlarged to ≥ OVERLAY_MIN_SIDE on the long side), scale s, line width, marker radius. */
+function overlayBase(cv, imageBgr) {
+  const L = Math.max(imageBgr.rows, imageBgr.cols)
+  const s = L < OVERLAY_MIN_SIDE ? OVERLAY_MIN_SIDE / L : 1
+  const overlay = new cv.Mat()
+  if (s > 1) cv.resize(imageBgr, overlay, new cv.Size(Math.round(imageBgr.cols * s), Math.round(imageBgr.rows * s)), 0, 0, cv.INTER_LINEAR)
+  else imageBgr.copyTo(overlay)
+  const ref = Math.max(overlay.rows, overlay.cols)
+  return { overlay, s, lw: Math.max(1, Math.round(ref / 1100)), r: Math.max(2, Math.round(ref / 450)), font: Math.max(0.35, ref / 2600) }
+}
+
+/** Draw a contour given in image coordinates onto the (possibly enlarged) overlay. */
+function drawScaledContour(cv, overlay, cnt, s, c, lw) {
+  let src = cnt
+  if (s !== 1) {
+    const d = cnt.data32S
+    const scaled = new Int32Array(d.length)
+    for (let i = 0; i < d.length; i += 1) scaled[i] = Math.round(d[i] * s)
+    src = cv.matFromArray(cnt.rows, 1, cv.CV_32SC2, Array.from(scaled))
+  }
+  const v = new cv.MatVector()
+  v.push_back(src)
+  cv.drawContours(overlay, v, 0, c, lw, cv.LINE_AA)
+  v.delete()
+  if (src !== cnt) src.delete()
+}
+
 function eachContour(cv, contours, fn) {
   for (let i = 0; i < contours.size(); i += 1) {
     const cnt = contours.get(i)
@@ -586,7 +618,7 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1, optio
   // apart by shade / tint, E112 Plate III)
   const contrastEtch = options.etch === 'contrast'
   const gray = new cv.Mat()
-  const overlay = imageBgr.clone()
+  let overlay = imageBgr.clone()
   let work = null
   let m = null
   try {
@@ -649,20 +681,24 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1, optio
       duplexPct = total > 0 ? (coarse.reduce((s, v) => s + v, 0) / total) * 100 : 0
     }
 
-    // Overlay at full resolution: boundary network (green), test lines, crossings (red).
+    // Overlay: thin boundary network (green), test lines (amber), intercepts (small red dots).
+    const ob = overlayBase(cv, imageBgr)
+    overlay.delete()
+    overlay = ob.overlay
+    const OW = overlay.cols
+    const OH = overlay.rows
     const big = new cv.Mat()
-    const thick = new cv.Mat()
     const k = cv.Mat.ones(3, 3, cv.CV_8U)
-    cv.resize(m.skeleton, big, new cv.Size(W, H), 0, 0, cv.INTER_NEAREST)
-    cv.dilate(big, thick, k, new cv.Point(-1, -1), scale < 0.6 ? 2 : 1)
-    const green = new cv.Mat(H, W, cv.CV_8UC3, color(cv, 0, 220, 0))
-    green.copyTo(overlay, thick)
-    for (const mm of [green, big, thick, k]) mm.delete()
-    const inv = 1 / scale
+    cv.resize(m.skeleton, big, new cv.Size(OW, OH), 0, 0, cv.INTER_NEAREST)
+    if (ob.lw > 1) cv.dilate(big, big, k, new cv.Point(-1, -1), ob.lw - 1)
+    const green = new cv.Mat(OH, OW, cv.CV_8UC3, color(cv, 0, 200, 0))
+    green.copyTo(overlay, big)
+    for (const mm of [green, big, k]) mm.delete()
+    const f = ob.s / scale // working px → overlay px
     for (const [a, b, c, d] of m.lines) {
-      cv.line(overlay, new cv.Point(a * inv, b * inv), new cv.Point(c * inv, d * inv), color(cv, 0, 200, 255), 1)
+      cv.line(overlay, new cv.Point(a * f, b * f), new cv.Point(c * f, d * f), color(cv, 0, 170, 255), ob.lw, cv.LINE_AA)
     }
-    for (const [mx, my] of m.marks) cv.circle(overlay, new cv.Point(mx * inv, my * inv), 3, color(cv, 0, 0, 255), -1)
+    for (const [mx, my] of m.marks) cv.circle(overlay, new cv.Point(mx * f, my * f), ob.r, color(cv, 0, 0, 230), -1, cv.LINE_AA)
 
     const result = {
       standard: 'ASTM E112-13 / ISO 643:2019',
@@ -684,9 +720,11 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1, optio
       etch_mode_note: contrastEtch ? 'Contrast-etch mode (beta): twin bands that differ in shade are counted as grains — check the overlay.' : null,
       // fewer than ~8 px per mean intercept at the image's own resolution: boundaries are not resolved
       resolution_warning:
-        meanUm > 0 && meanUm / um0 < 8
-          ? `Grains are only ~${round(meanUm / um0, 1)} px across: G is unreliable — capture at a higher magnification (aim for ≥ 15 px per grain).`
-          : null,
+        meanUm > 0 && meanUm / um0 < 10
+          ? `Grains are only ~${round(meanUm / um0, 1)} px across — capture at a higher magnification or resolution (≥ 15 px per grain).`
+          : Math.min(W, H) < 400
+            ? `Image is only ${W} × ${H} px — use the full-resolution camera image.`
+            : null,
       working_scale: round(scale, 3),
       um_per_px_x: umPerPxX,
       um_per_px_y: umPerPxY,
@@ -832,7 +870,7 @@ export function analyzeInclusion(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   const thresh = new cv.Mat()
   const contours = new cv.MatVector()
   const hierarchy = new cv.Mat()
-  const overlay = imageBgr.clone()
+  let overlay = imageBgr.clone()
   try {
     cv.cvtColor(imageBgr, gray, cv.COLOR_BGR2GRAY)
     cv.GaussianBlur(gray, blur, new cv.Size(3, 3), 0)
@@ -948,6 +986,9 @@ export function analyzeInclusion(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     }
 
     // overlay: rotated boxes per particle, coloured by the inclusion type it was rated as
+    const ob = overlayBase(cv, imageBgr)
+    overlay.delete()
+    overlay = ob.overlay
     for (const inc of allInclusions) {
       const c = color(cv, ...INCLUSION_COLORS[inc.type])
       for (const m of inc.members) {
@@ -955,11 +996,11 @@ export function analyzeInclusion(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
         for (let k = 0; k < 4; k += 1) {
           const p1 = pts[k]
           const p2 = pts[(k + 1) % 4]
-          cv.line(overlay, new cv.Point(p1.x, p1.y), new cv.Point(p2.x, p2.y), c, 2)
+          cv.line(overlay, new cv.Point(p1.x * ob.s, p1.y * ob.s), new cv.Point(p2.x * ob.s, p2.y * ob.s), c, ob.lw, cv.LINE_AA)
         }
       }
       const first = inc.members[0].p.rect.center
-      cv.putText(overlay, `${inc.type}${inc.series === 'heavy' ? 'H' : ''}`, new cv.Point(first.x + 6, first.y), cv.FONT_HERSHEY_SIMPLEX, 0.5, c, 1)
+      cv.putText(overlay, `${inc.type}${inc.series === 'heavy' ? 'H' : ''}`, new cv.Point(first.x * ob.s + 4 * ob.lw + 2, first.y * ob.s), cv.FONT_HERSHEY_SIMPLEX, ob.font, c, ob.lw, cv.LINE_AA)
     }
 
     const rating = {}
@@ -1093,11 +1134,13 @@ export function analyzeDecarb(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
 
     // overlay drawn in the surface-left frame, then rotated back
     const rot = TO_LEFT[S.side]
+    const ob = overlayBase(cv, imageBgr)
     overlay = new cv.Mat()
-    if (rot) cv.rotate(imageBgr, overlay, cv[rot])
-    else imageBgr.copyTo(overlay)
+    if (rot) cv.rotate(ob.overlay, overlay, cv[rot])
+    else ob.overlay.copyTo(overlay)
+    ob.overlay.delete()
     const H = overlay.rows
-    const line = (x, c) => cv.line(overlay, new cv.Point(x, 0), new cv.Point(x, H - 1), c, 2)
+    const line = (x, c) => cv.line(overlay, new cv.Point(x * ob.s, 0), new cv.Point(x * ob.s, H - 1), c, ob.lw + 1)
     line(S.surface, color(cv, 0, 255, 0))
     if (measurable) {
       line(S.surface + completePx, color(cv, 0, 200, 255))
@@ -1105,7 +1148,6 @@ export function analyzeDecarb(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     }
     const back = FROM_LEFT[S.side]
     if (back) { const tmp = new cv.Mat(); cv.rotate(overlay, tmp, cv[back]); overlay.delete(); overlay = tmp }
-    cv.putText(overlay, measurable ? `Decarb total ${totalUm.toFixed(1)} um, complete ${completeUm.toFixed(1)} um` : 'No decarburized layer found', new cv.Point(10, 24), cv.FONT_HERSHEY_SIMPLEX, 0.7, color(cv, 0, 0, 255), 2)
 
     const result = {
       standard: 'ISO 3887:2017',
@@ -1321,7 +1363,7 @@ export function a247SizeClass(maxDimUm) {
 // ---------------------------------------------------------------------------
 export function analyzeNodularity(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   const gray = new cv.Mat()
-  const overlay = imageBgr.clone()
+  let overlay = imageBgr.clone()
   let particles = []
   try {
     cv.cvtColor(imageBgr, gray, cv.COLOR_BGR2GRAY)
@@ -1346,12 +1388,12 @@ export function analyzeNodularity(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     const noduleCount = nodules.filter((p) => !p.touchesEdge).length + 0.5 * nodules.filter((p) => p.touchesEdge).length
     const sizes = nodules.map((p) => p.feretUm).sort((a, b) => a - b)
     const medianNodule = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0
+    const ob = overlayBase(cv, imageBgr)
+    overlay.delete()
+    overlay = ob.overlay
     for (const p of counted) {
       const c = p.kind === 'nodular' ? color(cv, 0, 200, 0) : p.kind === 'intermediate' ? color(cv, 0, 200, 255) : color(cv, 0, 0, 255)
-      const v = new cv.MatVector()
-      v.push_back(p.cnt)
-      cv.drawContours(overlay, v, 0, c, 2)
-      v.delete()
+      drawScaledContour(cv, overlay, p.cnt, ob.s, c, ob.lw)
     }
     const nodularity = totalArea > 0 ? (nodArea / totalArea) * 100 : 0
     const result = {
@@ -1382,7 +1424,7 @@ export function analyzeNodularity(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
 // ---------------------------------------------------------------------------
 export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   const gray = new cv.Mat()
-  const overlay = imageBgr.clone()
+  let overlay = imageBgr.clone()
   let particles = []
   try {
     cv.cvtColor(imageBgr, gray, cv.COLOR_BGR2GRAY)
@@ -1421,17 +1463,12 @@ export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     nearest.sort((a, b) => a - b)
     const spacing = nearest.length ? nearest[Math.floor(nearest.length / 2)] : 0
     const typeHint = sizeClass >= 7 && spacing < 25 ? 'D/E (interdendritic) suspected' : 'A (uniform, random) likely'
-    for (const p of flakes) {
-      const v = new cv.MatVector()
-      v.push_back(p.cnt)
-      cv.drawContours(overlay, v, 0, color(cv, 0, 200, 255), 1)
-      v.delete()
-    }
+    const ob = overlayBase(cv, imageBgr)
+    overlay.delete()
+    overlay = ob.overlay
+    for (const p of flakes) drawScaledContour(cv, overlay, p.cnt, ob.s, color(cv, 0, 200, 255), ob.lw)
     for (const p of flakes.slice().sort((a, b) => b.feretUm - a.feretUm).slice(0, 5)) {
-      const v = new cv.MatVector()
-      v.push_back(p.cnt)
-      cv.drawContours(overlay, v, 0, color(cv, 0, 0, 255), 3)
-      v.delete()
+      drawScaledContour(cv, overlay, p.cnt, ob.s, color(cv, 0, 0, 255), ob.lw + 1)
     }
     const result = {
       standard: 'ASTM A247 / ISO 945-1',

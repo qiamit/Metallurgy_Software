@@ -1,18 +1,16 @@
-import { carbonFromPearlite } from '@/features/phase-diagram/feC'
 import type { AnalysisJob } from '@/types'
 
 type JkRating = Record<'A' | 'B' | 'C' | 'D', { thin: number; heavy: number }>
 
-/** Structured parts of a result that the plain key/value list cannot show. */
+/** JK rating table (worst field) for inclusion jobs. */
 export function ResultExtras({ job }: { job: AnalysisJob }) {
   const r = (job.software_result ?? {}) as Record<string, unknown>
 
   if (job.analysis_type === 'inclusion' && r.jk_rating) {
     const jk = r.jk_rating as JkRating
     return (
-      <div className="mt-4">
-        <div className="text-xs text-[var(--muted)] mb-1">JK rating (worst field, ISO 4967 / ASTM E45 Method A)</div>
-        <table className="w-full text-sm border border-[var(--line)]">
+      <div className="overflow-x-auto">
+        <table className="table-grid w-full text-sm">
           <thead className="table-head">
             <tr>
               <th className="px-3 py-1.5 text-left">Series</th>
@@ -38,17 +36,5 @@ export function ResultExtras({ job }: { job: AnalysisJob }) {
     )
   }
 
-  if (job.analysis_type === 'micro' && typeof r.dark_phase_fraction === 'number') {
-    if (r.light_phase_is_ferrite === false) {
-      return <p className="mt-4 text-sm text-[var(--muted)]">{String(r.warning ?? '')}</p>
-    }
-    const pearlite = (r.dark_phase_fraction as number) * 100
-    return (
-      <p className="mt-4 text-sm text-[var(--muted)]">
-        Carbon (ferrite–pearlite, lever rule):{' '}
-        <b className="text-[var(--ink)]">≈ {carbonFromPearlite(pearlite).toFixed(2)} % C</b>
-      </p>
-    )
-  }
   return null
 }
