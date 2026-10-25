@@ -34,7 +34,8 @@ A live example of this exact setup is the `staging` environment (`docs/STAGING.m
    `GOTRUE_JWT_ADMIN_ROLES=service_role`, `API_EXTERNAL_URL=https://<api-domain>/auth/v1`,
    `GOTRUE_SITE_URL=https://<frontend-domain>`, `GOTRUE_URI_ALLOW_LIST=https://<frontend-domain>/reset-password`,
    `GOTRUE_DISABLE_SIGNUP=true` (labs register through `functions /register`), `GOTRUE_MAILER_AUTOCONFIRM=true`,
-   `GOTRUE_PASSWORD_MIN_LENGTH=8` (matches the app), SMTP (`GOTRUE_SMTP_*`) for password-reset emails.
+   `GOTRUE_PASSWORD_MIN_LENGTH=10` (matches the app and `functions`), SMTP (`GOTRUE_SMTP_*`) for password-reset
+   emails. Full list of required auth security settings: `docs/SECURITY.md` §1.
 4. **storage-api** — first boot with `DATABASE_URL` as `postgres` so it creates the `storage` schema. Also
    `DATABASE_SEARCH_PATH=storage,public`, `PGRST_JWT_SECRET`/`AUTH_JWT_SECRET`, `ANON_KEY`, `SERVICE_KEY`,
    `POSTGREST_URL=http://rest.railway.internal:3000`, `STORAGE_BACKEND=s3`, `GLOBAL_S3_BUCKET`, `GLOBAL_S3_ENDPOINT`,
@@ -53,11 +54,15 @@ A live example of this exact setup is the `staging` environment (`docs/STAGING.m
    `PGRST_JWT_SECRET`, `PGRST_DB_MAX_ROWS=10000`.
 7. **functions** — `NODE_ENV=production`, `AUTH_URL`, `REST_URL`, `STORAGE_URL=http://storage-api.railway.internal:8080`,
    `SERVICE_ROLE_KEY`, optional `OPENAI_API_KEY` / `OPENAI_MODEL` (server-wide fallback when a lab has no AI key).
-   Tuning: `ANALYSIS_CONCURRENCY`, `ANALYSIS_QUEUE`, `MAX_IMAGE_PIXELS` (see `docs/OPERATIONS.md`).
+   Tuning: `ANALYSIS_CONCURRENCY`, `ANALYSIS_QUEUE`, `MAX_IMAGE_PIXELS`, `MAX_RING_IMAGE_BYTES` (see `docs/OPERATIONS.md`).
 8. **api** (Caddy) — `GOTRUE_UPSTREAM`, `PGRST_UPSTREAM`, `STORAGE_UPSTREAM`, `FUNCTIONS_UPSTREAM`,
-   `FRONTEND_ORIGIN` (and optional `FRONTEND_ORIGIN_ALT`) for CORS.
-9. **pdf-service** — `AUTH_URL`, `AUTH_ANON_KEY`, `PDF_ALLOWED_ORIGINS=https://<frontend-domain>`.
-10. **frontend** — `VITE_SUPABASE_URL=https://<api-domain>`, `VITE_SUPABASE_ANON_KEY`, `VITE_PDF_SERVICE_URL`.
+   `FRONTEND_ORIGIN` (and optional `FRONTEND_ORIGIN_ALT`) for CORS. Production: `CORS_DEV_ORIGIN_REGEX=^$`
+   (turns off the localhost Vite origins).
+9. **pdf-service** — `AUTH_URL`, `AUTH_ANON_KEY`, `PDF_ALLOWED_ORIGINS=https://<frontend-domain>` (while unset, any
+   `*.up.railway.app` origin is accepted), optional `PDF_CONCURRENCY` (2) / `PDF_QUEUE` (10).
+10. **frontend** — `VITE_SUPABASE_URL=https://<api-domain>`, `VITE_SUPABASE_ANON_KEY`, `VITE_PDF_SERVICE_URL`. The
+    same variables are read at runtime by `server.mjs` to build the CSP `connect-src` / `img-src`; optional
+    `CSP_CONNECT_SRC` adds origins.
 11. **backup-job** — `DATABASE_URL`, `SOURCE_S3_*` (media bucket), `BACKUP_S3_*` (a second bucket), optional
     `BACKUP_RETENTION_DAYS`.
 

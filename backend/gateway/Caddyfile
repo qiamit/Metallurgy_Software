@@ -1,10 +1,24 @@
 {
   auto_https off
+  servers {
+    # Slow-client / idle limits (analysis + AI calls can take ~90 s upstream).
+    timeouts {
+      read_header 15s
+      idle 2m
+    }
+  }
 }
 
 :80 {
-  # Local Vite origins
-  @localDev header_regexp Origin ^https?://(localhost|127\.0\.0\.1):(517[3-9]|518[0-5])$
+  # Largest legitimate request: a 25 MB storage upload (bucket limit). functions caps JSON at 15 MB itself.
+  request_body {
+    max_size 30MB
+  }
+
+  # CORS allow-list. Only these origins get Access-Control-Allow-Origin:
+  #   FRONTEND_ORIGIN / FRONTEND_ORIGIN_ALT  exact production / staging frontend origins
+  #   CORS_DEV_ORIGIN_REGEX                  local Vite dev servers; set to ^$ in production to turn off
+  @localDev header_regexp Origin {$CORS_DEV_ORIGIN_REGEX:^https?://(localhost|127\.0\.0\.1):(517[3-9]|518[0-5])$}
   header @localDev Access-Control-Allow-Origin "{http.request.header.Origin}"
 
   # Production frontend origin(s), set on the Railway `api` service
@@ -19,11 +33,16 @@
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "DENY"
-    Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+    Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
+    X-Permitted-Cross-Domain-Policies "none"
     Access-Control-Allow-Credentials "true"
     Access-Control-Expose-Headers "Content-Range, Range, Content-Location, Content-Profile, Preference-Applied, X-Request-Id"
     Vary "Origin"
   }
+
+  # Do not advertise Caddy / PostgREST / GoTrue versions (deferred: applies to proxied responses too).
+  header -Server
 
   @preflight method OPTIONS
   handle @preflight {

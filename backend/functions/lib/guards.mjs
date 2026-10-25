@@ -115,3 +115,73 @@ export async function retryOnNetworkError(call, { attempts = 5, baseMs = 500, sl
   }
   throw lastErr
 }
+
+// ---------------------------------------------------------------------------
+// Input validation (pure helpers, unit-tested in test/security.test.mjs)
+// ---------------------------------------------------------------------------
+
+/** Same rule as GoTrue (`GOTRUE_PASSWORD_MIN_LENGTH=10`) and the browser forms. */
+export const PASSWORD_MIN_LENGTH = 10
+// bcrypt ignores bytes after 72; refuse longer passwords instead of silently truncating them.
+export const PASSWORD_MAX_BYTES = 72
+export const PASSWORD_RULE = `Password must be ${PASSWORD_MIN_LENGTH}-${PASSWORD_MAX_BYTES} characters`
+
+/** @returns {string | null} an error message, or null when the password is acceptable */
+export function passwordProblem(password, email = '') {
+  if (typeof password !== 'string') return PASSWORD_RULE
+  if (password.length < PASSWORD_MIN_LENGTH || Buffer.byteLength(password, 'utf8') > PASSWORD_MAX_BYTES) {
+    return PASSWORD_RULE
+  }
+  if (!password.trim()) return PASSWORD_RULE
+  const lower = password.toLowerCase()
+  if (email && (lower === email || lower === email.split('@')[0])) return 'Password must not be your email address'
+  if (/^(.)\1+$/.test(password)) return 'Password is too easy to guess'
+  return null
+}
+
+export function cleanEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
+export function isValidEmail(email) {
+  return typeof email === 'string' && email.length <= 254 && /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/.test(email)
+}
+
+/** Trimmed text, or an error when it is longer than `max`. Control characters are removed. */
+export function cleanText(value, max) {
+  // eslint-disable-next-line no-control-regex
+  const text = String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim()
+  if (text.length > max) {
+    const err = new Error(`Text is too long (max ${max} characters)`)
+    // @ts-ignore
+    err.statusCode = 400
+    throw err
+  }
+  return text
+}
+
+/** Client-supplied X-Request-Id is echoed and logged: keep it short and boring. */
+export function safeRequestId(value, fallback) {
+  const v = String(value || '')
+  return /^[A-Za-z0-9._:-]{1,64}$/.test(v) ? v : fallback()
+}
+
+/**
+ * Validate a base64 image payload without trusting its declared size.
+ * @returns {Buffer}
+ */
+export function decodeImageBase64(value, maxBytes) {
+  const raw = String(value || '').replace(/^data:[^;,]+;base64,/, '').replace(/\s+/g, '')
+  const fail = (status, message) => {
+    const err = new Error(message)
+    // @ts-ignore
+    err.statusCode = status
+    return err
+  }
+  if (!raw) throw fail(400, 'imageBase64 is required')
+  if (Math.floor((raw.length * 3) / 4) > maxBytes) {
+    throw fail(413, `Image is too large (max ${Math.round(maxBytes / 1024 / 1024)} MB)`)
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) throw fail(400, 'imageBase64 is not valid base64')
+  return Buffer.from(raw, 'base64')
+}

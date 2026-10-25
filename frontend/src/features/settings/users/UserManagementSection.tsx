@@ -75,7 +75,7 @@ export function UserManagementSection() {
 
   function onReset(m: Member) {
     if (!orgId) return
-    const password = window.prompt(`New temporary password for ${m.full_name || m.email} (min 8 characters)`)
+    const password = window.prompt(`New temporary password for ${m.full_name || m.email} (min 10 characters)`)
     if (!password) return
     run(m.id, () => resetMemberPassword(orgId, m.id, password), 'Password reset.')
   }
@@ -148,7 +148,7 @@ export function UserManagementSection() {
                       className="input mt-1"
                       type={type}
                       required={key !== 'password'}
-                      minLength={key === 'password' ? 8 : undefined}
+                      minLength={key === 'password' ? 10 : undefined}
                       value={form[key]}
                       onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                     />

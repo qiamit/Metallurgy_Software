@@ -59,7 +59,7 @@ export default function RegisterPage() {
                   className="input mt-1.5"
                   type={type}
                   required
-                  minLength={key === "password" ? 8 : undefined}
+                  minLength={key === "password" ? 10 : undefined}
                   value={form[key]}
                   onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                 />

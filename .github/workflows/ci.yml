@@ -35,6 +35,9 @@ jobs:
         continue-on-error: true # ported pages still use load-in-effect; tracked in docs/SECURITY.md
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
+      # Build tooling (vite, tailwind, eslint): reported, does not block. Runtime deps above do.
+      - run: npm audit --audit-level=high
+        continue-on-error: true
 
   database:
     runs-on: ubuntu-latest
@@ -51,6 +54,7 @@ jobs:
       - run: npm ci
       - name: Migrations + RLS rules (PGlite)
         run: npm run test:db
+      - run: npm audit --omit=dev --audit-level=high
 
   functions:
     runs-on: ubuntu-latest
@@ -99,3 +103,14 @@ jobs:
             -e GOTRUE_UPSTREAM=http://auth:9999 -e PGRST_UPSTREAM=http://rest:3000 \
             -e STORAGE_UPSTREAM=http://storage:8080 -e FUNCTIONS_UPSTREAM=http://functions:8080 \
             caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan (gitleaks, full history)
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 \
+            git /repo --redact --no-banner --exit-code 1

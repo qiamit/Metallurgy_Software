@@ -90,4 +90,25 @@ await as(u2, async () => {
   check('other owner cannot see lab A samples', (await q(`SELECT id FROM samples`)).length === 0)
   check('other owner cannot read lab A profiles', (await q(`SELECT id FROM user_profiles`)).length === 1)
 })
+// Security hardening (migration 20261026000000)
+await as(u1, async () => {
+  check('admin cannot edit audit log', await fails(() => q(`UPDATE audit_log SET action = 'X'`)))
+  check('admin cannot delete audit log', await fails(() => q(`DELETE FROM audit_log`)))
+  check('lab model id with spaces rejected', await fails(() => q(`UPDATE ai_settings SET model = 'bad model' WHERE organization_id = $1`, [orgA])))
+})
+await db.exec(`SET ROLE service_role`)
+try {
+  check('service role cannot delete audit log', await fails(() => q(`DELETE FROM audit_log`)))
+  check('service role cannot truncate audit log', await fails(() => q(`TRUNCATE audit_log`)))
+} finally { await db.exec(`RESET ROLE`) }
+check('owner role refused by append-only trigger', await fails(() => q(`DELETE FROM audit_log`)))
+await db.exec(`SET ROLE anon`)
+try {
+  check('anon cannot call role helpers', await fails(() => q(`SELECT public.app_has_org_role($1, 'viewer')`, [orgA])))
+  check('anon cannot create a lab', await fails(() => q(`SELECT public.create_my_organization('x')`)))
+} finally { await db.exec(`RESET ROLE`) }
+const unpinned = await q(`SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prosecdef
+    AND NOT coalesce(p.proconfig, '{}') @> ARRAY['search_path=public, pg_temp']`)
+check(`SECURITY DEFINER functions pin search_path (${unpinned.map((r) => r.proname).join(', ') || 'all'})`, unpinned.length === 0)
 console.log('audit rows', (await q(`SELECT count(*) c FROM audit_log`))[0].c)

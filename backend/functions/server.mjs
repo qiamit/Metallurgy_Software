@@ -7,9 +7,21 @@ import {
   encodeBgrToJpeg,
   ANALYZERS,
 } from './lib/analysis.mjs'
-import { resolveAiConfig, runAiAnalysis, compareResults } from './lib/ai.mjs'
+import sharp from 'sharp'
+import { resolveAiConfig, runAiAnalysis, compareResults, redactSecrets } from './lib/ai.mjs'
 import { analyzeRingImage } from './lib/ringAi.mjs'
-import { clientIp, createGate, createRateLimiter, retryOnNetworkError } from './lib/guards.mjs'
+import {
+  cleanEmail,
+  cleanText,
+  clientIp,
+  createGate,
+  createRateLimiter,
+  decodeImageBase64,
+  isValidEmail,
+  passwordProblem,
+  retryOnNetworkError,
+  safeRequestId,
+} from './lib/guards.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 const REST_URL = (process.env.REST_URL || 'http://rest.railway.internal:3000').replace(/\/$/, '')
@@ -73,12 +85,23 @@ function httpError(statusCode, message) {
   return err
 }
 
+// Image uploads (analyze-ring) may be large; every other route only carries a few ids / names.
 const MAX_BODY_BYTES = 15 * 1024 * 1024
+const SMALL_BODY_BYTES = 64 * 1024
+// Ring photo sent to the AI provider: decoded size and pixel count (same env var as lib/analysis.mjs).
+const MAX_RING_IMAGE_BYTES = Number(process.env.MAX_RING_IMAGE_BYTES || 10 * 1024 * 1024)
+const MAX_IMAGE_PIXELS = Number(process.env.MAX_IMAGE_PIXELS || 50_000_000)
 
-function readBody(req) {
+function readBody(req, maxBytes = SMALL_BODY_BYTES) {
   return new Promise((resolve, reject) => {
+    const type = String(req.headers['content-type'] || '').toLowerCase()
+    if (type && !type.startsWith('application/json')) {
+      reject(httpError(415, 'Content-Type must be application/json'))
+      req.resume()
+      return
+    }
     const declared = Number(req.headers['content-length'] || 0)
-    if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    if (Number.isFinite(declared) && declared > maxBytes) {
       reject(httpError(413, 'Request body is too large'))
       req.resume()
       return
@@ -87,7 +110,7 @@ function readBody(req) {
     let size = 0
     req.on('data', (chunk) => {
       size += chunk.length
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         reject(httpError(413, 'Request body is too large'))
         req.destroy()
         return
@@ -98,7 +121,12 @@ function readBody(req) {
       const raw = Buffer.concat(chunks).toString('utf8')
       if (!raw) return resolve({})
       try {
-        resolve(JSON.parse(raw))
+        const parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          reject(httpError(400, 'JSON body must be an object'))
+          return
+        }
+        resolve(parsed)
       } catch {
         reject(httpError(400, 'Invalid JSON body'))
       }
@@ -253,12 +281,9 @@ async function requireOrgRole(req, orgId, minimum) {
   return { user, role }
 }
 
-function validPassword(password) {
-  return typeof password === 'string' && password.length >= 8
-}
-
-function cleanEmail(email) {
-  return String(email || '').trim().toLowerCase()
+function assertPassword(password, email) {
+  const problem = passwordProblem(password, email)
+  if (problem) throw httpError(400, problem)
 }
 
 async function findAuthUserByEmail(email) {
@@ -299,10 +324,11 @@ async function handleRegister(req, res) {
   enforceLimit(limits.register, clientIp(req))
   const body = await readBody(req)
   const email = cleanEmail(body.email)
-  const fullName = String(body.full_name || '').trim()
-  const orgName = String(body.organization_name || '').trim()
+  const fullName = cleanText(body.full_name, 120)
+  const orgName = cleanText(body.organization_name, 120)
   if (!email || !fullName || !orgName) throw httpError(400, 'Email, full name and lab name are required')
-  if (!validPassword(body.password)) throw httpError(400, 'Password must be at least 8 characters')
+  if (!isValidEmail(email)) throw httpError(400, 'Enter a valid email address')
+  assertPassword(body.password, email)
 
   const user = await createAuthUser({ email, password: body.password, fullName })
   try {
@@ -336,14 +362,15 @@ async function handleCreateUser(req, res) {
   const { user: caller, role: callerRole } = await requireOrgRole(req, orgId, 'admin')
   enforceLimit(limits.members, caller.id)
   const email = cleanEmail(body.email)
-  const fullName = String(body.full_name || '').trim()
+  const fullName = cleanText(body.full_name, 120)
   const role = String(body.role || 'analyst')
   if (!email || !fullName) throw httpError(400, 'Email and full name are required')
+  if (!isValidEmail(email)) throw httpError(400, 'Enter a valid email address')
   assertCanGrant(callerRole, role)
 
   let user = await findAuthUserByEmail(email)
   if (!user) {
-    if (!validPassword(body.password)) throw httpError(400, 'Temp password must be at least 8 characters')
+    assertPassword(body.password, email)
     user = await createAuthUser({ email, password: body.password, fullName })
   }
   if (await orgRole(orgId, user.id)) throw httpError(400, 'Already a member')
@@ -403,12 +430,16 @@ async function handleResetMemberPassword(req, res) {
   enforceLimit(limits.members, caller.id)
   const target = await loadMembership(orgId, body.membership_id)
   if (ROLE_RANK[target.role] > ROLE_RANK[callerRole]) throw httpError(403, 'You cannot change this member')
-  if (!validPassword(body.password)) throw httpError(400, 'Password must be at least 8 characters')
+  assertPassword(body.password)
   const result = await authAdmin(`/admin/users/${encodeURIComponent(target.user_id)}`, {
     method: 'PUT',
     body: JSON.stringify({ password: body.password }),
   })
-  if (!result.ok) throw httpError(400, authErrorMessage(result.data, 'Could not reset password'))
+  if (!result.ok) {
+    // GoTrue 4xx messages (e.g. weak password) are safe to show; anything else stays generic.
+    const message = result.status < 500 ? authErrorMessage(result.data, 'Could not reset password') : 'Could not reset password'
+    throw httpError(400, message)
+  }
   json(res, 200, { ok: true })
 }
 
@@ -503,7 +534,9 @@ async function processJob(job, { aiOnly = false } = {}) {
     }
     return await patchJob(job.id, fields)
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    // Stored on the job and shown to the lab: short, and no credentials or upstream bodies.
+    const message = redactSecrets(err instanceof Error ? err.message : String(err)).slice(0, 300)
+    if (!err?.statusCode) console.error(JSON.stringify({ job: job.id, error: message }))
     // AI-only failures keep the software result usable.
     return await patchJob(job.id, {
       status: aiOnly && job.software_result ? 'completed' : 'failed',
@@ -549,7 +582,7 @@ async function handleRerunAi(req, res) {
 }
 
 async function handleAnalyzeRing(req, res) {
-  const body = await readBody(req)
+  const body = await readBody(req, MAX_BODY_BYTES)
   const orgId = body.organization_id
   const { user } = await requireOrgRole(req, orgId, 'analyst')
   enforceLimit(limits.ai, user.id)
@@ -562,14 +595,27 @@ async function handleAnalyzeRing(req, res) {
     json(res, 400, { ok: false, error: 'Add a DeepSeek or OpenAI API Key in AI Setting.' })
     return
   }
-  const imageBase64 = String(body.imageBase64 || '')
-  const mimeType = /^image\/(png|jpeg|webp)$/.test(String(body.mimeType)) ? body.mimeType : 'image/jpeg'
-  if (!imageBase64) throw httpError(400, 'imageBase64 is required')
+  const image = decodeImageBase64(body.imageBase64, MAX_RING_IMAGE_BYTES)
+  // Read only the header: real format, and refuse decompression bombs before anything decodes it.
+  let meta
   try {
-    const guidance = await analysisGate.run(() => analyzeRingImage(config, imageBase64, mimeType))
+    meta = await sharp(image, { limitInputPixels: MAX_IMAGE_PIXELS }).metadata()
+  } catch {
+    throw httpError(400, 'Image could not be read (png, jpeg or webp only)')
+  }
+  const formats = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' }
+  const mimeType = formats[meta.format]
+  if (!mimeType) throw httpError(400, 'Image must be png, jpeg or webp')
+  if (!meta.width || !meta.height || meta.width * meta.height > MAX_IMAGE_PIXELS) {
+    throw httpError(413, `Image is too large (over ${Math.round(MAX_IMAGE_PIXELS / 1e6)} megapixels). Please downscale it.`)
+  }
+  try {
+    const guidance = await analysisGate.run(() => analyzeRingImage(config, image.toString('base64'), mimeType))
     json(res, 200, { ok: true, guidance })
   } catch (err) {
-    json(res, 502, { ok: false, error: err instanceof Error ? err.message : 'AI analysis failed.' })
+    if (err?.statusCode === 503) throw err
+    const message = redactSecrets(err instanceof Error ? err.message : 'AI analysis failed.', config.apiKey)
+    json(res, 502, { ok: false, error: message.slice(0, 300) })
   }
 }
 
@@ -616,7 +662,7 @@ let shuttingDown = false
 
 const server = http.createServer(async (req, res) => {
   const started = Date.now()
-  const requestId = String(req.headers['x-request-id'] || crypto.randomUUID())
+  const requestId = safeRequestId(req.headers['x-request-id'], () => crypto.randomUUID())
   res.setHeader('X-Request-Id', requestId)
   const url = new URL(req.url || '/', 'http://functions.local')
   const key = `${req.method} ${url.pathname.replace(/\/$/, '') || '/'}`
@@ -638,7 +684,8 @@ const server = http.createServer(async (req, res) => {
   } catch (err) {
     const status = Number(err?.statusCode) || 500
     if (status >= 500) {
-      console.error(JSON.stringify({ id: requestId, route: key, error: err instanceof Error ? err.stack : String(err) }))
+      const detail = err instanceof Error ? err.stack || err.message : String(err)
+      console.error(JSON.stringify({ id: requestId, route: key, error: redactSecrets(detail, SERVICE_ROLE_KEY) }))
     }
     const headers = err?.retryAfter ? { 'Retry-After': String(err.retryAfter) } : {}
     // Never leak internal details on 5xx.

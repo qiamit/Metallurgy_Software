@@ -24,7 +24,7 @@ export function MyAccountSection() {
 
   async function onChangePassword(e: FormEvent) {
     e.preventDefault()
-    if (password.length < 8) return setMessage({ ok: false, text: 'Password must be at least 8 characters.' })
+    if (password.length < 10) return setMessage({ ok: false, text: 'Password must be at least 10 characters.' })
     if (password !== confirm) return setMessage({ ok: false, text: 'Passwords do not match.' })
     setBusy(true)
     setMessage(null)
@@ -62,13 +62,13 @@ export function MyAccountSection() {
           <label className="text-xs text-[var(--muted)]" htmlFor="acc-pw">
             New Password
           </label>
-          <input id="acc-pw" className="input mt-1" type="password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input id="acc-pw" className="input mt-1" type="password" minLength={10} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
         <div>
           <label className="text-xs text-[var(--muted)]" htmlFor="acc-pw2">
             Confirm Password
           </label>
-          <input id="acc-pw2" className="input mt-1" type="password" minLength={8} value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+          <input id="acc-pw2" className="input mt-1" type="password" minLength={10} value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
         </div>
         <button className="btn btn-primary" type="submit" disabled={busy}>
           Change Password

@@ -11,11 +11,20 @@ updates:
   - package-ecosystem: npm
     directory: /backend/pdf-service
     schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /backend
+    schedule: { interval: weekly }
   - package-ecosystem: docker
     directory: /backend/gateway
     schedule: { interval: monthly }
   - package-ecosystem: docker
     directory: /backend/functions
+    schedule: { interval: monthly }
+  - package-ecosystem: docker
+    directory: /backend/pdf-service
+    schedule: { interval: monthly }
+  - package-ecosystem: docker
+    directory: /backend/backup-job
     schedule: { interval: monthly }
   - package-ecosystem: github-actions
     directory: /

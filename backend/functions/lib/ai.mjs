@@ -52,8 +52,18 @@ const DEEPSEEK_TEXT_ONLY_MODELS = new Set([
   'deepseek-v4-pro',
 ])
 
+// Model ids are sent in the JSON body only; keep them to a safe, short charset.
+const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/
+
+/** Provider name -> fixed endpoint. Unknown names never pick a URL from lab data. */
+function providerDefaults(provider) {
+  return Object.hasOwn(PROVIDER_DEFAULTS, provider) ? PROVIDER_DEFAULTS[provider] : null
+}
+
 /**
  * Lab key first; otherwise the server-wide OPENAI_API_KEY (always provider openai).
+ * The request URL always comes from PROVIDER_DEFAULTS (fixed https endpoints), never from lab data,
+ * so a lab cannot point server-side requests at an arbitrary host (SSRF).
  * @param {{ provider?: string, model?: string, api_key?: string | null } | null} orgAi
  * @param {{ openaiApiKey?: string, openaiModel?: string }} env
  */
@@ -61,13 +71,30 @@ export function resolveAiConfig(orgAi, env) {
   const orgKey = typeof orgAi?.api_key === 'string' && orgAi.api_key.trim() ? orgAi.api_key.trim() : null
   const apiKey = orgKey || env.openaiApiKey || ''
   if (!apiKey) return null
-  const provider = orgKey ? String(orgAi?.provider || 'deepseek').toLowerCase() : 'openai'
-  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.openai
-  let model = orgKey
-    ? String(orgAi?.model || '') || (PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.deepseek).model
-    : env.openaiModel || ''
-  if (!model) model = defaults.model
-  return { provider, apiKey, model, baseUrl: defaults.baseUrl }
+  const requested = orgKey ? String(orgAi?.provider || 'deepseek').trim().toLowerCase() : 'openai'
+  const provider = providerDefaults(requested) ? requested : 'openai'
+  const defaults = providerDefaults(provider)
+  let model = orgKey ? String(orgAi?.model || '').trim() : String(env.openaiModel || '').trim()
+  // An unknown provider or a malformed model id falls back to the provider default.
+  if (provider !== requested || !MODEL_RE.test(model)) model = defaults.model
+  const baseUrl = defaults.baseUrl
+  if (!baseUrl.startsWith('https://')) throw new Error('AI endpoint must be https')
+  return { provider, apiKey, model, baseUrl }
+}
+
+/**
+ * Strip anything that looks like a credential from text that may reach logs or the browser
+ * (upstream error bodies sometimes echo part of the key).
+ * @param {string} text
+ * @param {string} [apiKey]
+ */
+export function redactSecrets(text, apiKey) {
+  let out = String(text ?? '')
+  if (apiKey && apiKey.length >= 6) out = out.split(apiKey).join('[redacted]')
+  return out
+    .replace(/\b(sk|pk|rk)-[A-Za-z0-9_*-]{8,}/g, '[redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]*/g, '[redacted]')
+    .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, '$1[redacted]')
 }
 
 function visionModel(config) {
@@ -129,14 +156,18 @@ export async function postChat(config, { model, messages, jsonMode = true, maxTo
       headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      // Never follow a redirect to another host with the API key attached.
+      redirect: 'error',
     })
     const text = await res.text()
-    if (res.status >= 400) throw new Error(`AI API error (${res.status}): ${text.slice(0, 500)}`)
+    if (res.status >= 400) {
+      throw new Error(`AI API error (${res.status}): ${redactSecrets(text.slice(0, 300), config.apiKey)}`)
+    }
     if (!text) throw new Error('AI API returned an empty response body')
     try {
       return JSON.parse(text)
     } catch {
-      throw new Error(`AI API returned invalid JSON: ${text.slice(0, 200)}`)
+      throw new Error(`AI API returned invalid JSON: ${redactSecrets(text.slice(0, 200), config.apiKey)}`)
     }
   } finally {
     clearTimeout(timer)
@@ -195,7 +226,7 @@ export async function runAiAnalysis(config, analysisType, jpegBase64, softwareCo
   try {
     return await visionAnalysis(config, analysisType, jpegBase64)
   } catch (visionErr) {
-    const reason = visionErr instanceof Error ? visionErr.message : String(visionErr)
+    const reason = redactSecrets(visionErr instanceof Error ? visionErr.message : String(visionErr), config.apiKey)
     if (softwareContext && Object.keys(softwareContext).length) {
       try {
         return await textAdvisory(config, analysisType, softwareContext, reason)

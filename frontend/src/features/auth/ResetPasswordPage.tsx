@@ -36,7 +36,7 @@ export default function ResetPasswordPage() {
 
   async function setNewPassword(e: FormEvent) {
     e.preventDefault()
-    if (password.length < 8) return setMessage({ ok: false, text: 'Password must be at least 8 characters.' })
+    if (password.length < 10) return setMessage({ ok: false, text: 'Password must be at least 10 characters.' })
     setBusy(true)
     setMessage(null)
     const { error } = await supabase.auth.updateUser({ password })
@@ -60,7 +60,7 @@ export default function ResetPasswordPage() {
                 <label className="text-xs font-semibold text-[var(--muted)] tracking-wide" htmlFor="rp-pw">
                   New Password
                 </label>
-                <input id="rp-pw" className="input mt-1.5" type="password" minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <input id="rp-pw" className="input mt-1.5" type="password" minLength={10} required value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
               {message && <p className={`text-sm ${message.ok ? 'text-[var(--ok)]' : 'text-[var(--danger)]'}`}>{message.text}</p>}
               <button className="btn btn-primary w-full" disabled={busy}>

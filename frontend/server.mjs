@@ -32,24 +32,80 @@ const TYPES = {
   '.map': 'application/json; charset=utf-8',
 }
 
+/** Origin of a URL from the environment, or '' when unset / invalid. */
+function originOf(value) {
+  try {
+    const u = new URL(String(value || '').trim())
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.origin : ''
+  } catch {
+    return ''
+  }
+}
+
+// The browser only talks to the API gateway (auth / rest / storage / functions) and the PDF service.
+// Railway exposes service variables at runtime too, so the same VITE_* values used by the build work here.
+// CSP_CONNECT_SRC adds extra origins (space- or comma-separated) without a code change.
+const API_ORIGIN = originOf(process.env.VITE_SUPABASE_URL)
+const PDF_ORIGIN = originOf(process.env.VITE_PDF_SERVICE_URL)
+const EXTRA_CONNECT = String(process.env.CSP_CONNECT_SRC || '')
+  .split(/[\s,]+/)
+  .map(originOf)
+  .filter(Boolean)
+const CONNECT_ORIGINS = [...new Set([API_ORIGIN, PDF_ORIGIN, ...EXTRA_CONNECT].filter(Boolean))]
+if (!API_ORIGIN) {
+  console.warn('[frontend] VITE_SUPABASE_URL is not set at runtime: CSP falls back to any https origin.')
+}
+// Without a known API origin keep the old, looser policy rather than break the app.
+const connectSrc = API_ORIGIN ? CONNECT_ORIGINS.join(' ') : 'https: wss:'
+// Signed storage URLs are served by the gateway; data:/blob: are local previews and captures.
+const imgSrc = API_ORIGIN ? `data: blob: ${API_ORIGIN}` : 'data: blob: https:'
+
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  `img-src 'self' ${imgSrc}`,
+  `connect-src 'self' ${connectSrc}`,
+  "media-src 'self' blob:",
+  "worker-src 'self' blob:",
+  "frame-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  ...(API_ORIGIN.startsWith('https:') ? ['upgrade-insecure-requests'] : []),
+].join('; ')
+
+// Camera stays on for this origin (capture studio, ring test); everything else is off.
+const PERMISSIONS_POLICY = [
+  'camera=(self)',
+  'microphone=()',
+  'geolocation=()',
+  'payment=()',
+  'usb=()',
+  'serial=()',
+  'bluetooth=()',
+  'hid=()',
+  'midi=()',
+  'magnetometer=()',
+  'gyroscope=()',
+  'accelerometer=()',
+  'display-capture=()',
+  'browsing-topics=()',
+  'fullscreen=(self)',
+].join(', ')
+
 function securityHeaders() {
   return {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Frame-Options': 'DENY',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-    'Content-Security-Policy': [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob: https:",
-      "connect-src 'self' https: wss:",
-      "frame-src 'self' https://maps.google.com https://www.google.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "frame-ancestors 'none'",
-    ].join('; '),
+    'Content-Security-Policy': CSP,
+    'Permissions-Policy': PERMISSIONS_POLICY,
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'X-Permitted-Cross-Domain-Policies': 'none',
   }
 }
 

@@ -12,6 +12,32 @@ const MAX_HTML_BYTES = Number(process.env.PDF_MAX_HTML_BYTES || 12_000_000)
 const AUTH_URL = (process.env.AUTH_URL || '').replace(/\/$/, '')
 const AUTH_ANON_KEY = process.env.AUTH_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 const ON_RAILWAY = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID)
+// Each render holds a Chromium page; cap how many run at once (extra callers get 503).
+const PDF_CONCURRENCY = Math.max(1, Number(process.env.PDF_CONCURRENCY || 2))
+const PDF_QUEUE = Math.max(0, Number(process.env.PDF_QUEUE || 10))
+let activeRenders = 0
+/** @type {Array<() => void>} */
+const renderQueue = []
+
+async function withRenderSlot(task) {
+  if (activeRenders >= PDF_CONCURRENCY) {
+    if (renderQueue.length >= PDF_QUEUE) {
+      const err = new Error('PDF service is busy. Please try again in a moment.')
+      err.statusCode = 503
+      throw err
+    }
+    await new Promise((resolve) => renderQueue.push(() => resolve(undefined)))
+  } else {
+    activeRenders += 1
+  }
+  try {
+    return await task()
+  } finally {
+    const next = renderQueue.shift()
+    if (next) next()
+    else activeRenders -= 1
+  }
+}
 
 /** @type {import('playwright').Browser | null} */
 let browser = null
@@ -42,7 +68,7 @@ function parseBody(body) {
   }
   const filename =
     typeof o.filename === 'string' && o.filename.trim()
-      ? o.filename.trim().replace(/[\\/:*?"<>|]+/g, '_')
+      ? o.filename.trim().replace(/[\\/:*?"<>|\u0000-\u001f\u007f]+/g, '_').slice(0, 150)
       : 'document.pdf'
   const formatRaw = typeof o.format === 'string' ? o.format.toLowerCase() : 'a4'
   const format =
@@ -50,10 +76,10 @@ function parseBody(body) {
       ? formatRaw
       : 'a4'
   const landscape = o.landscape === true
-  const margin =
-    o.margin && typeof o.margin === 'object'
-      ? /** @type {Record<string, string>} */ (o.margin)
-      : { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' }
+  // Only short CSS lengths reach Chromium (e.g. "12mm", "0.5in").
+  const cssLength = (v) => (typeof v === 'string' && /^\d{1,3}(\.\d{1,2})?(mm|cm|in|px)?$/.test(v.trim()) ? v.trim() : '0mm')
+  const m = o.margin && typeof o.margin === 'object' ? /** @type {Record<string, unknown>} */ (o.margin) : {}
+  const margin = { top: cssLength(m.top), right: cssLength(m.right), bottom: cssLength(m.bottom), left: cssLength(m.left) }
   return { html, filename, format, landscape, margin }
 }
 
@@ -111,7 +137,10 @@ async function callerIsSignedIn(req) {
 
 async function htmlToPdf(html, opts) {
   const b = await getBrowser()
-  const page = await b.newPage()
+  // Report HTML needs no JavaScript. With scripts off, submitted HTML cannot open WebSockets or
+  // otherwise reach the internal network (page.route only sees HTTP requests).
+  const context = await b.newContext({ javaScriptEnabled: false, serviceWorkers: 'block', acceptDownloads: false })
+  const page = await context.newPage()
   try {
     await page.route('**/*', (route) => {
       if (isAllowedAsset(route.request().url())) route.continue()
@@ -153,7 +182,7 @@ async function htmlToPdf(html, opts) {
     })
     return pdf
   } finally {
-    await page.close().catch(() => undefined)
+    await context.close().catch(() => undefined)
   }
 }
 
@@ -194,8 +223,9 @@ function allowedPdfOrigin(req) {
   const origin = String(req.headers.origin || '').trim()
   if (!origin) return ''
   if (ALLOWED_ORIGINS.includes(origin)) return origin
-  if (/^https:\/\/[a-z0-9-]+\.up\.railway\.app$/i.test(origin)) return origin
-  if (/^http:\/\/(localhost|127\.0\.0\.1):51(7[3-9]|8[0-5])$/.test(origin)) return origin
+  // Any *.up.railway.app origin only while PDF_ALLOWED_ORIGINS is unset (first deploys); set it in Railway.
+  if (!ALLOWED_ORIGINS.length && /^https:\/\/[a-z0-9-]+\.up\.railway\.app$/i.test(origin)) return origin
+  if (!ON_RAILWAY && /^http:\/\/(localhost|127\.0\.0\.1):51(7[3-9]|8[0-5])$/.test(origin)) return origin
   return ''
 }
 
@@ -205,6 +235,8 @@ function corsHeaders(req) {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     Vary: 'Origin',
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
   }
   if (origin) headers['Access-Control-Allow-Origin'] = origin
   return headers
@@ -238,7 +270,7 @@ const server = http.createServer(async (req, res) => {
       await callerIsSignedIn(req)
       const json = await readJson(req)
       const opts = parseBody(json)
-      const pdf = await htmlToPdf(opts.html, opts)
+      const pdf = await withRenderSlot(() => htmlToPdf(opts.html, opts))
       const outName = opts.filename.toLowerCase().endsWith('.pdf')
         ? opts.filename
         : `${opts.filename}.pdf`
@@ -250,9 +282,11 @@ const server = http.createServer(async (req, res) => {
       })
       res.end(pdf)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'PDF generation failed'
-      const status = Number(err?.statusCode) || 500
-      console.error('[pdf-service]', message)
+      const detail = err instanceof Error ? err.message : 'PDF generation failed'
+      const status = Number(err?.statusCode) || (/too large|required|Invalid JSON/i.test(detail) ? 400 : 500)
+      console.error('[pdf-service]', status, detail)
+      // 5xx: never send Chromium / Playwright internals to the browser.
+      const message = ON_RAILWAY && status >= 500 && status !== 503 ? 'PDF generation failed' : detail
       sendJson(res, status, { error: message }, req)
     }
     return
