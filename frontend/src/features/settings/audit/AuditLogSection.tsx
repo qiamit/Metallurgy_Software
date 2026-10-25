@@ -42,8 +42,6 @@ export function AuditLogSection() {
 
   return (
     <section className="card p-6 space-y-4">
-      <h2 className="font-semibold">Audit Log</h2>
-      <p className="text-sm text-[var(--muted)]">Every create, change and delete in this lab, newest first.</p>
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
       <div className="overflow-x-auto border border-[var(--line)]">
         <table className="w-full text-sm">

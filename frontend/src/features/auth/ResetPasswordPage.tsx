@@ -48,7 +48,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="auth-shell">
       <div className="auth-brand hidden md:flex">
-        <p className="text-xs tracking-[0.12em] text-teal-200/80 font-semibold mb-4">Metallurgy Lab SaaS</p>
+        <p className="text-xs tracking-[0.12em] text-white/60 font-semibold mb-4">Metallurgy Lab SaaS</p>
         <h1>Reset Your Password</h1>
       </div>
       <div className="auth-form-wrap">
@@ -57,10 +57,10 @@ export default function ResetPasswordPage() {
             <h1 className="text-2xl font-bold">Set New Password</h1>
             <div className="mt-6 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-[var(--muted)] tracking-wide" htmlFor="rp-pw">
+                <label className="label" htmlFor="rp-pw">
                   New Password
                 </label>
-                <input id="rp-pw" className="input mt-1.5" type="password" minLength={10} required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <input id="rp-pw" className="input" type="password" minLength={10} required value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
               {message && <p className={`text-sm ${message.ok ? 'text-[var(--ok)]' : 'text-[var(--danger)]'}`}>{message.text}</p>}
               <button className="btn btn-primary w-full" disabled={busy}>
@@ -71,13 +71,12 @@ export default function ResetPasswordPage() {
         ) : (
           <form onSubmit={sendLink} className="auth-card">
             <h1 className="text-2xl font-bold">Forgot Password</h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">We will email you a reset link.</p>
             <div className="mt-6 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-[var(--muted)] tracking-wide" htmlFor="rp-email">
+                <label className="label" htmlFor="rp-email">
                   Email
                 </label>
-                <input id="rp-email" className="input mt-1.5" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                <input id="rp-email" className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               {message && <p className={`text-sm ${message.ok ? 'text-[var(--ok)]' : 'text-[var(--danger)]'}`}>{message.text}</p>}
               <button className="btn btn-primary w-full" disabled={busy}>

@@ -1040,7 +1040,7 @@ export default function CapturePage() {
               />
             )}
             {showPlaceholder && (
-              <div className="absolute inset-0 z-[2] grid place-items-center text-slate-400 text-sm px-6 text-center">
+              <div className="absolute inset-0 z-[2] grid place-items-center text-white/50 text-sm px-6 text-center">
                 Camera Preview Will Appear Here. If the Microscope USB Camera Is Not
                 Exposed as a Webcam, Use Upload.
               </div>
@@ -1081,7 +1081,7 @@ export default function CapturePage() {
 
               {calibrationMode === "existing" ? (
                 <div>
-                  <label className="text-xs text-[var(--muted)]">Select Calibration</label>
+                  <label className="label">Select Calibration</label>
                   <select
                     className="input mt-1"
                     value={calibrationId}
@@ -1108,7 +1108,7 @@ export default function CapturePage() {
                     ] as const
                   ).map(([key, label]) => (
                     <div key={key} className={key === "notes" ? "sm:col-span-2" : ""}>
-                      <label className="text-xs text-[var(--muted)]">{label}</label>
+                      <label className="label">{label}</label>
                       <input
                         className="input mt-1"
                         type={key.startsWith("um_") ? "number" : "text"}
@@ -1145,7 +1145,7 @@ export default function CapturePage() {
           {activePanel === "sample" && (
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-[var(--muted)]">Analysis Module</label>
+                <label className="label">Analysis Module</label>
                 <select
                   className="input mt-1"
                   value={analysisType}
@@ -1161,7 +1161,7 @@ export default function CapturePage() {
 
               {analysisType === "grain_size" && (
                 <div>
-                  <label className="text-xs text-[var(--muted)]">Etch Type</label>
+                  <label className="label">Etch Type</label>
                   <select
                     className="input mt-1"
                     value={etch}
@@ -1196,7 +1196,7 @@ export default function CapturePage() {
               {sampleMode === "existing" ? (
                 <>
                   <div>
-                    <label className="text-xs text-[var(--muted)]">Select Sample</label>
+                    <label className="label">Select Sample</label>
                     <select
                       className="input mt-1"
                       value={sampleId}
@@ -1214,11 +1214,11 @@ export default function CapturePage() {
                   {selectedSample ? (
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs text-[var(--muted)]">Sample Code</label>
+                        <label className="label">Sample Code</label>
                         <input className="input mt-1" readOnly value={selectedSample.sample_code} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--muted)]">Material</label>
+                        <label className="label">Material</label>
                         <input
                           className="input mt-1"
                           readOnly
@@ -1226,7 +1226,7 @@ export default function CapturePage() {
                         />
                       </div>
                       <div className="sm:col-span-2">
-                        <label className="text-xs text-[var(--muted)]">Description</label>
+                        <label className="label">Description</label>
                         <textarea
                           className="input mt-1 min-h-20 resize-y"
                           readOnly
@@ -1235,7 +1235,7 @@ export default function CapturePage() {
                       </div>
                       {selectedSample.created_at && (
                         <div className="sm:col-span-2">
-                          <label className="text-xs text-[var(--muted)]">Created On</label>
+                          <label className="label">Created On</label>
                           <input
                             className="input mt-1"
                             readOnly
@@ -1244,16 +1244,12 @@ export default function CapturePage() {
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <p className="text-xs text-[var(--muted)]">
-                      Select an existing sample or switch to New Sample to create one.
-                    </p>
-                  )}
+                  ) : null}
                 </>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-[var(--muted)]">Sample Code</label>
+                    <label className="label">Sample Code</label>
                     <input
                       className="input mt-1"
                       placeholder="e.g. HT-2026-001"
@@ -1265,7 +1261,7 @@ export default function CapturePage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--muted)]">Material</label>
+                    <label className="label">Material</label>
                     <input
                       className="input mt-1"
                       placeholder="e.g. AISI 4140"
@@ -1276,7 +1272,7 @@ export default function CapturePage() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-xs text-[var(--muted)]">Description</label>
+                    <label className="label">Description</label>
                     <textarea
                       className="input mt-1 min-h-20 resize-y"
                       placeholder="Heat treatment, batch, customer reference, etc."

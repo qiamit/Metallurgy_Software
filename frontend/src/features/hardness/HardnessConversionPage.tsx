@@ -16,15 +16,11 @@ export default function HardnessConversionPage() {
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="page-title">Hardness Conversion</h1>
-        <p className="page-subtitle">
-          Approximate conversions per ASTM E140 (from the lab&apos;s conversion chart). Values between table rows are
-          interpolated linearly; nothing outside the table range is extrapolated.
-        </p>
       </div>
 
       <div className="card p-6 grid md:grid-cols-3 gap-4 items-end">
         <div>
-          <label className="text-xs text-[var(--muted)]" htmlFor="hc-scale">
+          <label className="label" htmlFor="hc-scale">
             Measured Scale
           </label>
           <select id="hc-scale" className="input mt-1" value={scaleKey} onChange={(e) => setScaleKey(e.target.value)}>
@@ -36,7 +32,7 @@ export default function HardnessConversionPage() {
           </select>
         </div>
         <div>
-          <label className="text-xs text-[var(--muted)]" htmlFor="hc-value">
+          <label className="label" htmlFor="hc-value">
             Value
           </label>
           <input
@@ -82,10 +78,6 @@ export default function HardnessConversionPage() {
         </p>
       )}
 
-      <p className="text-xs text-[var(--muted)]">
-        Conversions are approximate and material-dependent (ASTM E140). Report the measured scale as the result; use
-        converted values for guidance only.
-      </p>
     </div>
   )
 }

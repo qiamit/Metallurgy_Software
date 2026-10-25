@@ -1959,9 +1959,6 @@ export function RingEditor(props: RingEditorProps) {
                 <div className="flex items-center justify-center">
                   <h3 className="text-sm font-semibold text-white">Reset Drawing</h3>
                 </div>
-                <p className="text-[10px] leading-snug text-slate-400">
-                  Clear all drawn overlays on this image. Image and mm/px scale stay unchanged.
-                </p>
                 <ul className="space-y-1 rounded-md border border-[--color-border-strong] bg-slate-900/40 px-2 py-2 text-left text-[10px] text-slate-300">
                   <li className={inner ? "text-amber-100" : "text-slate-500"}>
                     • Inner Ring {inner ? "(drawn)" : "(empty)"}
@@ -2025,9 +2022,6 @@ export function RingEditor(props: RingEditorProps) {
                         placeholder="Known length"
                         className="input h-8 text-center font-mono text-xs"
                       />
-                      <p className="text-[10px] leading-snug text-slate-400">
-                        Enter known line length, then draw the line. Scale appears below.
-                      </p>
                     </div>
                     <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-2 text-center">
                       <p className="text-[10px] uppercase tracking-wider text-cyan-200/80">Active Scale</p>

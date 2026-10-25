@@ -35,10 +35,9 @@ export function CreateLabDialog({ open, onOpenChange }: { open: boolean; onOpenC
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block text-sm">
-            <span className="text-[var(--muted)]">Organization / Lab Name</span>
+            <span className="label">Lab Name</span>
             <input className="input mt-1 w-full" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           </label>
-          <p className="text-xs text-[var(--muted)]">You Become the Owner of the New Workspace.</p>
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
           <DialogFooter>
             <button type="button" className="btn btn-ghost" onClick={() => onOpenChange(false)}>

@@ -22,7 +22,7 @@ export function CalibrationFields({
     <>
       {FIELDS.map(([key, label]) => (
         <div key={key}>
-          <label className="text-xs text-[var(--muted)]" htmlFor={`cal-${key}`}>
+          <label className="label" htmlFor={`cal-${key}`}>
             {label}
           </label>
           <input

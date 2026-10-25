@@ -12,7 +12,6 @@ const PERMISSIONS: [string, string][] = [
 export function RolesSection() {
   return (
     <section className="card p-6 space-y-4">
-      <h2 className="font-semibold">Roles & Module Access</h2>
       <ul className="text-sm text-[var(--muted)] space-y-1.5">
         {ROLE_DESCRIPTIONS.map((r) => (
           <li key={r.role}>

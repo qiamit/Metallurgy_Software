@@ -31,11 +31,11 @@ export default function RegisterPage() {
   return (
     <div className="auth-shell">
       <div className="auth-brand hidden md:flex">
-        <p className="text-xs tracking-[0.12em] text-teal-200/80 font-semibold mb-4">
+        <p className="text-xs tracking-[0.12em] text-white/60 font-semibold mb-4">
           Get Started Free
         </p>
         <h1>Create Your Lab Workspace</h1>
-        <p className="mt-4 text-teal-100/70 max-w-sm leading-relaxed">
+        <p className="mt-4 text-white/70 max-w-sm leading-relaxed">
           You Become the Organization Owner. Invite Analysts, Reviewers, and Admins
           With Role-Based Access Control.
         </p>
@@ -43,7 +43,6 @@ export default function RegisterPage() {
       <div className="auth-form-wrap">
         <form onSubmit={onSubmit} className="auth-card">
           <h1 className="text-2xl font-bold">Create Lab Workspace</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">You Become the Organization Owner</p>
           <div className="mt-6 space-y-4">
             {(
               [
@@ -54,9 +53,9 @@ export default function RegisterPage() {
               ] as const
             ).map(([key, label, type]) => (
               <div key={key}>
-                <label className="text-xs font-semibold text-[var(--muted)] tracking-wide">{label}</label>
+                <label className="label">{label}</label>
                 <input
-                  className="input mt-1.5"
+                  className="input"
                   type={type}
                   required
                   minLength={key === "password" ? 10 : undefined}

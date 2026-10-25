@@ -29,11 +29,11 @@ export default function LoginPage() {
   return (
     <div className="auth-shell">
       <div className="auth-brand hidden md:flex">
-        <p className="text-xs tracking-[0.12em] text-teal-200/80 font-semibold mb-4">
+        <p className="text-xs tracking-[0.12em] text-white/60 font-semibold mb-4">
           Metallurgy Lab SaaS
         </p>
         <h1>Sign In to Your Lab Workspace</h1>
-        <p className="mt-4 text-teal-100/70 max-w-sm leading-relaxed">
+        <p className="mt-4 text-white/70 max-w-sm leading-relaxed">
           Standards-Aligned Grain Size, Inclusion, Decarburization, Cast Iron, Micro and
           Macro Analysis — Calibrated on ASTM / ISO Charts, With Multi-Tenant RBAC.
         </p>
@@ -41,15 +41,14 @@ export default function LoginPage() {
       <div className="auth-form-wrap">
         <form onSubmit={onSubmit} className="auth-card">
           <h1 className="text-2xl font-bold">Sign In</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">Access Your Metallurgy Workspace</p>
           <div className="mt-6 space-y-4">
             <div>
-              <label className="text-xs font-semibold text-[var(--muted)] tracking-wide">Email</label>
-              <input className="input mt-1.5" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <label className="label">Email</label>
+              <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-semibold text-[var(--muted)] tracking-wide">Password</label>
-              <input className="input mt-1.5" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+              <label className="label">Password</label>
+              <input className="input" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
             <button className="btn btn-primary w-full" disabled={busy}>

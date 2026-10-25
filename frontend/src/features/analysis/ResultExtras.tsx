@@ -45,9 +45,8 @@ export function ResultExtras({ job }: { job: AnalysisJob }) {
     const pearlite = (r.dark_phase_fraction as number) * 100
     return (
       <p className="mt-4 text-sm text-[var(--muted)]">
-        If this is a slowly cooled ferrite–pearlite steel (dark phase = pearlite):{' '}
-        <b className="text-[var(--ink)]">≈ {carbonFromPearlite(pearlite).toFixed(2)} % C</b> by the lever rule
-        (Fe–C diagram).
+        Carbon (ferrite–pearlite, lever rule):{' '}
+        <b className="text-[var(--ink)]">≈ {carbonFromPearlite(pearlite).toFixed(2)} % C</b>
       </p>
     )
   }

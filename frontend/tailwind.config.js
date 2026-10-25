@@ -86,7 +86,7 @@ export default {
         full: "var(--ui-radius)",
       },
       fontFamily: {
-        sans: ['"DM Sans"', "Segoe UI", "system-ui", "sans-serif"],
+        sans: ['"Inter"', "Segoe UI", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Consolas", "monospace"],
         display: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
         jakarta: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],

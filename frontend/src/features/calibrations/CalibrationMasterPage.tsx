@@ -101,9 +101,6 @@ export function CalibrationMasterPage() {
     <div className="space-y-8 max-w-5xl">
       <div>
         <h1 className="page-title">Calibration</h1>
-        <p className="page-subtitle">
-          Stage Micrometer Calibrations (µm/px) per Objective — Required Before Accurate Analysis.
-        </p>
       </div>
 
       {canCreate && (

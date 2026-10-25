@@ -34,10 +34,6 @@ export default function PhaseDiagramPage() {
     <div className="space-y-6 max-w-5xl">
       <div>
         <h1 className="page-title">Fe–C Phase Diagram</h1>
-        <p className="page-subtitle">
-          Iron–cementite (metastable) diagram with the key points from the lab chart: eutectoid {FE_C.eutectoidT} °C /{' '}
-          {FE_C.eutectoidC} % C, eutectic {FE_C.eutecticT} °C / {FE_C.eutecticC} % C, Fe₃C {FE_C.cementiteC} % C.
-        </p>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
@@ -70,11 +66,11 @@ export default function PhaseDiagramPage() {
         <div className="space-y-4">
           <div className="card p-4 space-y-3">
             <label className="block text-sm">
-              <span className="text-xs text-[var(--muted)]">Carbon: {c.toFixed(2)} wt %</span>
+              <span className="label">Carbon: {c.toFixed(2)} wt %</span>
               <input type="range" min={0} max={C_MAX} step={0.01} value={c} onChange={(e) => setC(Number(e.target.value))} className="w-full" />
             </label>
             <label className="block text-sm">
-              <span className="text-xs text-[var(--muted)]">Temperature: {t} °C</span>
+              <span className="label">Temperature: {t} °C</span>
               <input type="range" min={T_MIN} max={T_MAX} step={1} value={t} onChange={(e) => setT(Number(e.target.value))} className="w-full" />
             </label>
             <div className="border-t border-[var(--line)] pt-3">
@@ -105,12 +101,11 @@ export default function PhaseDiagramPage() {
           <div className="card p-4 space-y-2">
             <div className="font-semibold text-sm">Carbon estimate from pearlite</div>
             <label className="block text-sm">
-              <span className="text-xs text-[var(--muted)]">Pearlite area: {pearlite} %</span>
+              <span className="label">Pearlite area: {pearlite} %</span>
               <input type="range" min={0} max={100} step={1} value={pearlite} onChange={(e) => setPearlite(Number(e.target.value))} className="w-full" />
             </label>
             <p className="text-sm">
               ≈ <b>{carbonFromPearlite(pearlite).toFixed(2)} % C</b>{' '}
-              <span className="text-[var(--muted)]">(slowly cooled ferrite–pearlite steel)</span>
             </p>
           </div>
         </div>

@@ -89,7 +89,7 @@ export function UserManagementSection() {
   return (
     <section className="card p-6 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h2 className="font-semibold">User Management</h2>
+        <span />
         <div className="flex flex-wrap items-center gap-2 shrink-0" ref={headerActionsRef}>
           <div className="relative">
             <button
@@ -140,7 +140,7 @@ export function UserManagementSection() {
                   ] as const
                 ).map(([key, label, type]) => (
                   <div key={key}>
-                    <label className="text-xs text-[var(--muted)]" htmlFor={`invite-${key}`}>
+                    <label className="label" htmlFor={`invite-${key}`}>
                       {label}
                     </label>
                     <input
@@ -158,7 +158,7 @@ export function UserManagementSection() {
                   Existing users (already in another lab) keep their password; leave it blank for them.
                 </p>
                 <div>
-                  <label className="text-xs text-[var(--muted)]" htmlFor="invite-role">
+                  <label className="label" htmlFor="invite-role">
                     Role
                   </label>
                   <select

@@ -171,7 +171,7 @@ export function GlobalLayout() {
                 aria-expanded={menuOpen}
                 aria-haspopup="true"
               >
-                <div className="w-8 h-8 rounded-none bg-gradient-to-br from-[var(--accent)] to-[#0369a1] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                <div className="w-8 h-8 rounded-none bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {initials || 'U'}
                 </div>
                 <div className="min-w-0 text-left hidden sm:block">

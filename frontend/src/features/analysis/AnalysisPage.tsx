@@ -101,7 +101,6 @@ function AnalysisContent() {
                   {details[key].standard}
                 </div>
                 <h2 className="mt-2 font-semibold">{ANALYSIS_LABELS[key]}</h2>
-                <p className="mt-2 text-sm text-[var(--muted)]">{details[key].description}</p>
               </Link>
             ))}
           </div>

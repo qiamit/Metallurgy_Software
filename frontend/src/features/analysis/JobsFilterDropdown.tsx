@@ -65,7 +65,7 @@ export function JobsFilterDropdown({ filters, onChange }: JobsFilterDropdownProp
       {open && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-40 w-[min(420px,calc(100vw-2rem))] border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-lg)] p-4 space-y-4">
           <div>
-            <label className="text-xs text-[var(--muted)]">Search Jobs</label>
+            <label className="label">Search Jobs</label>
             <input
               className="input mt-1"
               placeholder="Module, status, date, job id…"
@@ -75,7 +75,7 @@ export function JobsFilterDropdown({ filters, onChange }: JobsFilterDropdownProp
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-[var(--muted)]">Module</label>
+              <label className="label">Module</label>
               <select
                 className="input mt-1"
                 value={filters.module}
@@ -90,7 +90,7 @@ export function JobsFilterDropdown({ filters, onChange }: JobsFilterDropdownProp
               </select>
             </div>
             <div>
-              <label className="text-xs text-[var(--muted)]">Status</label>
+              <label className="label">Status</label>
               <select
                 className="input mt-1"
                 value={filters.status}

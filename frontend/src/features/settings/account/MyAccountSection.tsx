@@ -39,15 +39,15 @@ export function MyAccountSection() {
   return (
     <div className="grid lg:grid-cols-2 gap-6">
       <form onSubmit={onSaveName} className="card p-6 space-y-4">
-        <h2 className="font-semibold">Profile</h2>
+        <h2 className="section-title">Profile</h2>
         <div>
-          <label className="text-xs text-[var(--muted)]" htmlFor="acc-email">
+          <label className="label" htmlFor="acc-email">
             Email
           </label>
           <input id="acc-email" className="input mt-1" value={user?.email ?? ''} disabled />
         </div>
         <div>
-          <label className="text-xs text-[var(--muted)]" htmlFor="acc-name">
+          <label className="label" htmlFor="acc-name">
             Full Name
           </label>
           <input id="acc-name" className="input mt-1" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -57,15 +57,15 @@ export function MyAccountSection() {
         </button>
       </form>
       <form onSubmit={onChangePassword} className="card p-6 space-y-4">
-        <h2 className="font-semibold">Change Password</h2>
+        <h2 className="section-title">Change Password</h2>
         <div>
-          <label className="text-xs text-[var(--muted)]" htmlFor="acc-pw">
+          <label className="label" htmlFor="acc-pw">
             New Password
           </label>
           <input id="acc-pw" className="input mt-1" type="password" minLength={10} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
         <div>
-          <label className="text-xs text-[var(--muted)]" htmlFor="acc-pw2">
+          <label className="label" htmlFor="acc-pw2">
             Confirm Password
           </label>
           <input id="acc-pw2" className="input mt-1" type="password" minLength={10} value={confirm} onChange={(e) => setConfirm(e.target.value)} required />

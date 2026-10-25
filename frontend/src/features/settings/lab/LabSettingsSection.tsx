@@ -83,7 +83,7 @@ export function LabSettingsSection() {
 
   const field = (key: LabTextField, label: string, type = 'text') => (
     <div key={key}>
-      <label className="text-xs text-[var(--muted)]" htmlFor={`lab-${key}`}>
+      <label className="label" htmlFor={`lab-${key}`}>
         {label}
       </label>
       <input
@@ -119,13 +119,13 @@ export function LabSettingsSection() {
       </div>
 
       <div className="border-t border-[var(--line)] pt-6">
-        <h2 className="font-semibold mb-4">Branding Assets</h2>
+        <h2 className="section-title">Branding Assets</h2>
         <p className="text-xs text-[var(--muted)] mb-4">Used on PDF reports and Ring Test certificates.</p>
         <div className="grid md:grid-cols-2 gap-4">
           {LAB_ASSETS.map(([asset, label]) => (
             <div key={asset} className="border border-[var(--line)] p-4 space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-[var(--muted)]">{label}</span>
+                <span className="label">{label}</span>
                 <label className="btn btn-ghost cursor-pointer inline-flex shrink-0">
                   {assetBusy === asset ? 'Uploading…' : 'Upload Image'}
                   <input

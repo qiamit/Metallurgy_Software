@@ -435,9 +435,9 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
         </div>
       ) : null}
 
-      {/* Step 1 — Sample Information + testing slogan */}
-      <div className="grid min-h-[calc(100dvh-5.5rem)] gap-4 lg:grid-cols-[minmax(18rem,26rem)_minmax(0,1fr)] lg:items-stretch">
-        <div className="card h-fit space-y-4 p-4 sm:p-5 lg:sticky lg:top-0">
+      {/* Step 1 — Sample Information */}
+      <div className="max-w-xl">
+        <div className="card h-fit space-y-4 p-4 sm:p-5">
           <h2 className="text-base font-semibold text-white">Sample Information</h2>
           <Field label="Sample Description" required>
             <input
@@ -482,62 +482,8 @@ export function RingTestWorkflow({ defaults }: { defaults: Defaults }) {
           <button type="button" className="btn-primary w-full" onClick={openAnalysis}>
             Do Analysis
           </button>
-          <p className="border-t border-[--color-border] pt-3 text-center text-xs leading-relaxed text-[--color-muted] lg:hidden">
-            <span className="font-medium text-slate-300">Measure once. Trust every millimetre.</span>
-            <span className="mt-1 block">IS 1786:2008 ring testing — capture, analyse, report.</span>
-          </p>
         </div>
 
-        <aside className="relative hidden overflow-hidden rounded-[--radius-card] border border-[--color-border] bg-[#070d18] lg:flex lg:min-h-0 lg:flex-col">
-          <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-600/15 via-transparent to-cyan-500/10"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute -right-20 top-10 h-72 w-72 rounded-full bg-blue-500/15 blur-3xl motion-safe:animate-pulse"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute -left-16 bottom-8 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute inset-0 opacity-[0.045]"
-            style={{
-              backgroundImage:
-                "linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)",
-              backgroundSize: "40px 40px",
-            }}
-            aria-hidden
-          />
-
-          <div className="relative flex flex-1 flex-col justify-center px-8 py-10 xl:px-12 xl:py-12">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-300/90">
-              Ring Test Manager
-            </p>
-            <h2 className="mt-4 max-w-xl text-3xl font-bold tracking-tight text-white xl:text-4xl xl:leading-tight">
-              Measure once.
-              <span className="block text-slate-200">Trust every millimetre.</span>
-            </h2>
-            <p className="mt-4 max-w-lg text-sm leading-relaxed text-slate-400 xl:text-base">
-              From specimen face to IS 1786:2008 verdict — capture, scale, analyse thickness, and
-              leave a report you can stand behind.
-            </p>
-
-            <div className="relative mt-10 h-40 w-40 xl:mt-12 xl:h-48 xl:w-48" aria-hidden>
-              <div className="absolute inset-0 rounded-full border border-blue-400/25" />
-              <div className="absolute inset-[14%] rounded-full border border-cyan-300/30 motion-safe:animate-[spin_28s_linear_infinite]" />
-              <div className="absolute inset-[28%] rounded-full border border-dashed border-white/20" />
-              <div className="absolute inset-[42%] rounded-full bg-gradient-to-br from-blue-500/30 to-cyan-400/10" />
-              <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-300 shadow-[0_0_16px_rgba(96,165,250,0.7)]" />
-            </div>
-
-            <p className="mt-8 text-xs tracking-wide text-slate-500">
-              Fill sample details, then continue with{" "}
-              <span className="font-medium text-slate-300">Do Analysis</span>.
-            </p>
-          </div>
-        </aside>
       </div>
 
       {/* Step 2 — Analysis window (RingEditor) */}

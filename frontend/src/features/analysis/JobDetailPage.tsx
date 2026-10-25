@@ -191,13 +191,10 @@ export default function JobDetailPage() {
 
       {editMode && canAnalyze && (
         <div className="card p-5 space-y-4">
-          <h2 className="font-semibold">Edit Job</h2>
-          <p className="text-sm text-[var(--muted)]">
-            Change the module, calibration or etch type and re-run the software analysis on the same image.
-          </p>
+          <h2 className="section-title">Edit Job</h2>
           <div className="grid md:grid-cols-3 gap-4">
             <label className="text-sm">
-              <span className="text-xs text-[var(--muted)]">Analysis Module</span>
+              <span className="label">Analysis Module</span>
               <select className="input mt-1" value={editType} onChange={(e) => setEditType(e.target.value as AnalysisType)}>
                 {(Object.keys(ANALYSIS_LABELS) as AnalysisType[]).map((t) => (
                   <option key={t} value={t}>
@@ -207,7 +204,7 @@ export default function JobDetailPage() {
               </select>
             </label>
             <label className="text-sm">
-              <span className="text-xs text-[var(--muted)]">Calibration</span>
+              <span className="label">Calibration</span>
               <select className="input mt-1" value={editCalibration} onChange={(e) => setEditCalibration(e.target.value)}>
                 <option value="">None (1 µm/px Default)</option>
                 {calibrations.map((c) => (
@@ -219,7 +216,7 @@ export default function JobDetailPage() {
             </label>
             {editType === "grain_size" && (
               <label className="text-sm">
-                <span className="text-xs text-[var(--muted)]">Etch Type</span>
+                <span className="label">Etch Type</span>
                 <select className="input mt-1" value={editEtch} onChange={(e) => setEditEtch(e.target.value as "line" | "contrast")}>
                   <option value="line">Boundary Etch (lines)</option>
                   <option value="contrast">Contrast / Tint Etch (shades, beta)</option>
@@ -240,7 +237,7 @@ export default function JobDetailPage() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="card p-4">
-          <h2 className="font-semibold mb-3">Source Image</h2>
+          <h2 className="section-title">Source Image</h2>
           {sourceUrl ? (
             <img
               src={sourceUrl}
@@ -252,7 +249,7 @@ export default function JobDetailPage() {
           )}
         </div>
         <div className="card p-4">
-          <h2 className="font-semibold mb-3">Software Overlay</h2>
+          <h2 className="section-title">Software Overlay</h2>
           {overlayUrl ? (
             <img
               src={overlayUrl}
@@ -267,11 +264,8 @@ export default function JobDetailPage() {
 
       <div>
         <div className="card p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Software Analysis</h2>
-            <span className="badge badge-ok">Standards-Oriented</span>
-          </div>
-          <dl className="mt-4 space-y-2 text-sm">
+          <h2 className="section-title">Software Analysis</h2>
+          <dl className="space-y-2 text-sm">
             {Object.entries(job.software_result || {}).map(([k, v]) =>
               typeof v === "object" ? null : (
                 <div key={k} className="flex justify-between gap-4 border-b border-[var(--line)] py-1.5">

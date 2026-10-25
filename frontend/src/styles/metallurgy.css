@@ -1,43 +1,43 @@
-/* Metallurgy Lab theme — ported from the Next.js app (globals.css). */
-
-/* SteelLab Pro — industrial metallography SaaS theme */
+/* Metallurgy Lab — QIRLPL LIMS look: stone paper, accent from the active theme, square corners, dark sidebar.
+   Colour variables are written per theme by src/lib/appTheme.ts (Settings → Theme); these are the
+   Classic Amber defaults used before the script runs. */
 :root {
-  --bg: #eef2f7;
-  --bg-subtle: #e4eaf2;
-  --panel: #ffffff;
-  --sidebar: #0a101c;
-  --sidebar-elevated: #111827;
-  --sidebar-hover: #162033;
-  --sidebar-active: #1a2d45;
-  --sidebar-border: #243044;
-  --sidebar-accent-line: #0d9488;
-  --sidebar-text: #8b9cb3;
-  --sidebar-text-active: #f8fafc;
-  --ink: #0f172a;
-  --muted: #64748b;
-  --line: #dbe3ef;
-  --accent: #0d9488;
-  --accent-hover: #0f766e;
-  --accent-ink: #0f766e;
-  --accent-soft: #ccfbf1;
-  --accent-glow: rgba(13, 148, 136, 0.15);
+  --bg: #f6f4f1;
+  --bg-subtle: #ece8e3;
+  --panel: #fdfcfb;
+  --field: #faf9f7;
+  --line: #d9d3cc;
+  --line-strong: #a69d94;
+  --ink: #1d1b19;
+  --muted: #6b635c;
+  --sidebar: #1f1c1a;
+  --sidebar-elevated: #2a2623;
+  --sidebar-hover: #34302c;
+  --sidebar-active: #4a3016;
+  --sidebar-border: #3e3935;
+  --sidebar-accent-line: #e88a1a;
+  --sidebar-text: #c4bdb6;
+  --sidebar-text-active: #ffffff;
+  --accent: #b45309;
+  --accent-hover: #93440a;
+  --accent-ink: #92400e;
+  --accent-soft: #fbeedd;
+  --accent-glow: rgba(180, 83, 9, 0.18);
+  --accent-on: #ffffff;
   --steel: #1e40af;
   --steel-soft: #dbeafe;
   --warn: #b45309;
   --danger: #b91c1c;
   --ok: #15803d;
-  --preview-bg: #0b1220;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.12);
+  --preview-bg: #1f1c1a;
+  --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.06);
+  --shadow-md: 0 4px 16px rgba(28, 25, 23, 0.08);
+  --shadow-lg: 0 12px 40px rgba(28, 25, 23, 0.12);
   --radius: 0;
-  --hero-grad: linear-gradient(135deg, #0f1729 0%, #1e3a5f 45%, #0d9488 100%);
-  --mesh-bg:
-    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(13, 148, 136, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(30, 64, 175, 0.06) 0%, transparent 45%),
-    var(--bg);
+  --control-h: 2.25rem;
+  --hero-grad: linear-gradient(135deg, #1f1c1a 0%, #5c3a17 55%, #b45309 100%);
+  --mesh-bg: #f6f4f1;
 }
-
 
 * {
   box-sizing: border-box;
@@ -48,6 +48,7 @@ body {
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-body), "Segoe UI", sans-serif;
+  font-size: 0.875rem;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -55,124 +56,184 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display), sans-serif;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 
 .page-title {
-  font-size: 1.875rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
-.page-subtitle {
+/* Section heading inside a card or form: small caps line, like LIMS form sections */
+.section-title {
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-size: 0.9375rem;
-  margin-top: 0.35rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.9rem;
 }
 
-.card {
+.card,
+.card-elevated,
+.stat-card {
   background: var(--panel);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
 }
 
 .card-elevated {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
   box-shadow: var(--shadow-md);
 }
 
 .stat-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
   padding: 1.25rem;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+  border-color: var(--line-strong);
 }
 
+/* ---- Buttons ---- */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  height: var(--control-h);
   border-radius: 0;
-  padding: 0.625rem 1.125rem;
-  font-size: 0.875rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  transition: all 0.15s ease;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   cursor: pointer;
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-primary {
-  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
-  color: white;
-  border: 1px solid var(--accent-hover);
-  box-shadow: 0 1px 3px var(--accent-glow);
+  background: var(--accent);
+  color: var(--accent-on);
+  border: 1px solid var(--accent);
 }
 
 .btn-primary:hover:not(:disabled) {
-  filter: brightness(1.06);
-  box-shadow: 0 4px 12px var(--accent-glow);
-}
-
-.btn-primary:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .btn-ghost {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   color: var(--ink);
 }
 
-.btn-ghost:hover {
-  background: var(--bg);
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-subtle);
 }
 
-.input {
-  width: 100%;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  border-radius: 0;
-  padding: 0.65rem 0.85rem;
-  font-size: 0.9rem;
+.btn-danger {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  color: var(--danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+/* ---- Forms: label above field, nothing else ---- */
+.form-grid {
+  display: grid;
+  gap: 0.9rem 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.label,
+.field > span:first-child {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
   color: var(--ink);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+  margin-top: 1rem;
+}
+
+.input,
 select,
-select.input {
+select.input,
+textarea.input {
   width: 100%;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  min-height: var(--control-h);
+  border: 1px solid var(--line-strong);
+  background: var(--field);
   border-radius: 0;
-  padding: 2mm;
-  font-size: 0.9rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.875rem;
   color: var(--ink);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+textarea.input {
+  min-height: 5rem;
+}
+
+.input::placeholder {
+  color: color-mix(in srgb, var(--muted) 75%, transparent);
 }
 
 .input:focus,
-select.input:focus {
+select:focus,
+select.input:focus,
+textarea.input:focus {
   outline: none;
   border-color: var(--accent);
+  background: var(--panel);
   box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.input:disabled,
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
 }
 
 .preview-panel {
   background: var(--preview-bg);
-  border: 1px solid #1e293b;
+  border: 1px solid var(--line-strong);
   border-radius: 0;
   overflow: hidden;
   position: relative;
@@ -193,44 +254,49 @@ select.input:focus {
   z-index: 1;
 }
 
+/* ---- Tables ---- */
 .table-head {
-  background: linear-gradient(180deg, #0f766e 0%, #0d9488 100%);
-  color: white;
+  background: var(--sidebar);
+  color: var(--sidebar-text-active);
 }
 
 .table-head th {
   font-weight: 600;
-  font-size: 0.8125rem;
-  letter-spacing: 0.02em;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
+table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+/* ---- Badges (tinted from the status colour, so they work in light and dark themes) ---- */
 .badge {
   display: inline-flex;
   align-items: center;
   border-radius: 0;
-  padding: 0.2rem 0.55rem;
+  padding: 0.15rem 0.5rem;
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .badge-ok {
-  background: #dcfce7;
   color: var(--ok);
 }
 
 .badge-warn {
-  background: #fef3c7;
   color: var(--warn);
 }
 
 .badge-danger {
-  background: #fee2e2;
   color: var(--danger);
 }
 
 .badge-muted {
-  background: #f1f5f9;
   color: var(--muted);
 }
 
@@ -283,7 +349,7 @@ select.input:focus {
 }
 
 .landing-nav {
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
@@ -328,7 +394,7 @@ select.input:focus {
 .sidebar-brand {
   padding: 1.125rem;
   border-bottom: 1px solid var(--sidebar-border);
-  background: linear-gradient(180deg, rgba(13, 148, 136, 0.08) 0%, transparent 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 100%);
 }
 
 .sidebar-toggle {
@@ -345,8 +411,8 @@ select.input:focus {
 }
 
 .sidebar-toggle:hover {
-  background: rgba(13, 148, 136, 0.2);
-  border-color: rgba(13, 148, 136, 0.45);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   color: #99f6e4;
 }
 
@@ -375,7 +441,7 @@ select.input:focus {
   place-items: center;
   background: linear-gradient(145deg, var(--accent) 0%, #0369a1 100%);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .sidebar-brand-text {
@@ -441,7 +507,7 @@ select.input:focus {
 }
 
 .sidebar-link-active {
-  background: linear-gradient(90deg, rgba(13, 148, 136, 0.18) 0%, var(--sidebar-active) 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 18%, transparent) 0%, var(--sidebar-active) 100%);
   color: var(--sidebar-text-active);
   font-weight: 600;
   border-color: color-mix(in srgb, var(--accent) 35%, var(--sidebar-border));
@@ -459,8 +525,8 @@ select.input:focus {
 }
 
 .sidebar-link-active .sidebar-icon {
-  background: rgba(13, 148, 136, 0.22);
-  border-color: rgba(13, 148, 136, 0.45);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   color: #5eead4;
 }
 
@@ -480,8 +546,8 @@ select.input:focus {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #5eead4;
-  border: 1px solid rgba(13, 148, 136, 0.35);
-  background: rgba(13, 148, 136, 0.1);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 0.35rem 0.5rem;
 }
 
@@ -1734,19 +1800,7 @@ select.input:focus {
 
 /* -- Ring Test module (original Ring Test Manager dark theme, scoped) -- */
 .rt-shell {
-  --rt-bg: #0b1220;
-  --rt-surface: #111a2c;
-  --rt-surface-2: #0d1729;
-  --rt-input: #0a1322;
-  --rt-border: #1f2a44;
-  --rt-border-strong: #27324d;
-  --rt-fg: #e5e7eb;
-  --rt-muted: #94a3b8;
-  --rt-subtle: #64748b;
-  --rt-primary: #2563eb;
-  --rt-primary-hover: #1d4ed8;
-  --rt-primary-soft: #1e3a5f;
-  --rt-accent: #60a5fa;
+  /* dark workspace colours come from the active theme (src/lib/appTheme.ts) */
   --color-border: var(--rt-border);
   --color-border-strong: var(--rt-border-strong);
   --color-muted: var(--rt-muted);
@@ -1759,8 +1813,8 @@ select.input:focus {
   --color-primary-hover: var(--rt-primary-hover);
   --color-primary-soft: var(--rt-primary-soft);
   --color-accent: var(--rt-accent);
-  --radius-card: 12px;
-  --radius-control: 8px;
+  --radius-card: 0;
+  --radius-control: 0;
   background: var(--rt-bg);
   color: var(--rt-fg);
   margin: -2mm -2mm 0;
@@ -1800,7 +1854,7 @@ select.input:focus {
 .rt-shell select.input:focus,
 .rt-shell textarea.input:focus {
   border-color: var(--rt-primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--rt-primary) 45%, transparent);
 }
 
 .rt-shell .input::placeholder {
@@ -1921,9 +1975,9 @@ select.input:focus {
 }
 
 .rt-shell .rt-subnav a.rt-subnav-active {
-  background: rgba(37, 99, 235, 0.2);
+  background: color-mix(in srgb, var(--rt-primary) 20%, transparent);
   color: #bfdbfe;
-  border-color: rgba(59, 130, 246, 0.4);
+  border-color: color-mix(in srgb, var(--rt-primary) 40%, transparent);
 }
 
 .rt-shell .pill-pass {

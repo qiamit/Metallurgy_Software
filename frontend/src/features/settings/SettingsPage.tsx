@@ -7,6 +7,7 @@ import { UserManagementSection } from '@/features/settings/users/UserManagementS
 import { RolesSection } from '@/features/settings/roles/RolesSection'
 import { AuditLogSection } from '@/features/settings/audit/AuditLogSection'
 import { MyAccountSection } from '@/features/settings/account/MyAccountSection'
+import { ThemeSection } from '@/features/settings/theme/ThemeSection'
 
 export default function SettingsPage() {
   const [searchParams] = useSearchParams()
@@ -40,14 +41,11 @@ export default function SettingsPage() {
           <AuditLogSection />
         </RequireRole>
       )}
+      {section === 'theme' && <ThemeSection />}
       {section === 'account' && <MyAccountSection />}
 
       {section === 'contact' && (
         <section className="card p-6 space-y-3">
-          <h2 className="font-semibold">Contact Us</h2>
-          <p className="text-sm text-[var(--muted)]">
-            For Laboratory Support, Billing, or Technical Assistance, Reach Out to Your Account Team.
-          </p>
           <div className="text-sm space-y-1">
             <p>
               <b>Email:</b> support@metallurgylab.app
@@ -61,7 +59,6 @@ export default function SettingsPage() {
 
       {section === 'help' && (
         <section className="card p-6 space-y-3">
-          <h2 className="font-semibold">Help</h2>
           <ul className="text-sm text-[var(--muted)] space-y-2 list-disc pl-5">
             <li>Use Capture Studio to Upload or Capture Microscope Images.</li>
             <li>Set Calibration Before Running Grain Size or Depth Analysis.</li>
