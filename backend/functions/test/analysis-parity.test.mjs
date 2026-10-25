@@ -19,7 +19,7 @@ async function rawRgb(buffer) {
   return sharp(buffer).removeAlpha().raw().toBuffer()
 }
 
-const STILL_PARITY = ['decarb', 'micro', 'macro']
+const STILL_PARITY = ['macro'] // decarb and micro were rebuilt (test/decarb-micro.test.mjs)
 
 for (const [type, analyze] of Object.entries(ANALYZERS).filter(([t]) => STILL_PARITY.includes(t))) {
   test(`${type} matches Python result and overlay`, async () => {

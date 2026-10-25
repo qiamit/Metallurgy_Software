@@ -32,6 +32,11 @@ export interface Sample {
   created_at?: string
 }
 
+/** Per-job analysis options. etch: grain-size etch type (ASTM E112 flat/line etch vs contrast/tint etch). */
+export interface AnalysisOptions {
+  etch?: 'line' | 'contrast'
+}
+
 export interface AnalysisJob {
   id: string
   organization_id: string
@@ -40,6 +45,7 @@ export interface AnalysisJob {
   analysis_type: AnalysisType
   status: JobStatus
   run_ai?: boolean
+  analysis_options?: AnalysisOptions | null
   source_image_path?: string | null
   overlay_image_path?: string | null
   software_result?: Record<string, unknown> | null

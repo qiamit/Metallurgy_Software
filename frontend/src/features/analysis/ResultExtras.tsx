@@ -39,6 +39,9 @@ export function ResultExtras({ job }: { job: AnalysisJob }) {
   }
 
   if (job.analysis_type === 'micro' && typeof r.dark_phase_fraction === 'number') {
+    if (r.light_phase_is_ferrite === false) {
+      return <p className="mt-4 text-sm text-[var(--muted)]">{String(r.warning ?? '')}</p>
+    }
     const pearlite = (r.dark_phase_fraction as number) * 100
     return (
       <p className="mt-4 text-sm text-[var(--muted)]">

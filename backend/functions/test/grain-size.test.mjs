@@ -70,3 +70,58 @@ test('ASTM E112-13 relations', () => {
   assert.ok(Math.abs(gFromGrainsPerMm2(7.75) - 0) < 0.03)
   assert.ok(Math.abs(gFromGrainsPerMm2(1984) - 8) < 0.03)
 })
+
+test('faint boundaries with a few black specks (dust, pits): G still within 0.4', async () => {
+  const { cv } = await loadCv()
+  const side = 30
+  const img = new cv.Mat(960, 960, cv.CV_8UC3, new cv.Scalar(235, 235, 235, 255))
+  const lines = hexGrains(cv, 960, side, 2)
+  // boundaries only ~45 grey levels below the matrix
+  const d = img.data
+  const l = lines.data
+  for (let p = 0; p < d.length; p += 1) if (l[p] < 128) d[p] = 190
+  lines.delete()
+  let seed = 11
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
+  for (let i = 0; i < 60; i += 1) cv.circle(img, new cv.Point(Math.round(rnd() * 960), Math.round(rnd() * 960)), 3, new cv.Scalar(0, 0, 0, 255), -1)
+  const exact = gFromGrainsPerMm2(1 / (((3 * Math.sqrt(3)) / 2) * (side / 1000) ** 2))
+  const { result, overlay } = analyzeGrainSize(cv, img, 1, 1)
+  img.delete()
+  overlay.delete()
+  assert.ok(Math.abs(result.grain_size_number_G - exact) < 0.4, `intercept ${result.grain_size_number_G} vs ${exact.toFixed(2)}`)
+})
+
+test('contrast (tint) etch: grains told apart by shade only are segmented with etch=contrast', async () => {
+  const { cv } = await loadCv()
+  const side = 40
+  const size = 960
+  const img = new cv.Mat(size, size, cv.CV_8UC3)
+  const d = img.data
+  const w = Math.sqrt(3) * side
+  // nearest hexagon centre → shade per grain (no boundary lines at all)
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const row = Math.round(y / (1.5 * side))
+      let best = Infinity
+      let id = 0
+      for (let r = row - 1; r <= row + 1; r += 1) {
+        const off = r % 2 ? w / 2 : 0
+        const col = Math.round((x - off) / w)
+        for (let c = col - 1; c <= col + 1; c += 1) {
+          const dd = (x - (c * w + off)) ** 2 + (y - r * 1.5 * side) ** 2
+          // axial-coordinate 3-colouring: neighbouring grains never share a shade
+          if (dd < best) { best = dd; id = ((((c - (r - (r & 1)) / 2) - r) % 3) + 3) % 3 }
+        }
+      }
+      const v = 90 + id * 60
+      const p = (y * size + x) * 3
+      d[p] = d[p + 1] = d[p + 2] = v
+    }
+  }
+  const exact = gFromGrainsPerMm2(1 / (((3 * Math.sqrt(3)) / 2) * (side / 1000) ** 2))
+  const { result, overlay } = analyzeGrainSize(cv, img, 1, 1, { etch: 'contrast' })
+  img.delete()
+  overlay.delete()
+  assert.equal(result.etch_mode, 'contrast (tint) etch')
+  assert.ok(Math.abs(result.grain_size_number_G_planimetric - exact) < 0.8, `planimetric ${result.grain_size_number_G_planimetric} vs ${exact.toFixed(2)}`)
+})

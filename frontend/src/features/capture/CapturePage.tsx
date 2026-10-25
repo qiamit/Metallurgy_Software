@@ -158,6 +158,7 @@ export default function CapturePage() {
     const t = searchParams.get("type") as AnalysisType | null;
     return t && t in ANALYSIS_LABELS ? t : "grain_size";
   });
+  const [etch, setEtch] = useState<"line" | "contrast">("line");
   const [preview, setPreview] = useState<string | null>(null);
   const [sourceBlob, setSourceBlob] = useState<Blob | null>(null);
   const [, setBlob] = useState<Blob | null>(null);
@@ -900,6 +901,7 @@ export default function CapturePage() {
         analysisType,
         calibrationId: calibrationId || null,
         runAi: true,
+        analysisOptions: analysisType === "grain_size" ? { etch } : {},
         image: finalBlob,
       });
       stopCamera();
@@ -1157,6 +1159,20 @@ export default function CapturePage() {
                   ))}
                 </select>
               </div>
+
+              {analysisType === "grain_size" && (
+                <div>
+                  <label className="text-xs text-[var(--muted)]">Etch Type</label>
+                  <select
+                    className="input mt-1"
+                    value={etch}
+                    onChange={(e) => setEtch(e.target.value as "line" | "contrast")}
+                  >
+                    <option value="line">Boundary Etch — grain boundaries visible as lines (nital, picral)</option>
+                    <option value="contrast">Contrast / Tint Etch — grains differ in shade (colour etch, beta)</option>
+                  </select>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <button

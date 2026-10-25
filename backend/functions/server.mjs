@@ -55,6 +55,15 @@ const limits = {
   ai: createRateLimiter({ limit: 10, windowMs: 60 * 1000 }),
 }
 
+/** Known per-job analysis options only (the column is lab-writable JSON). */
+function analysisOptions(raw) {
+  const out = {}
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    if (raw.etch === 'line' || raw.etch === 'contrast') out.etch = raw.etch
+  }
+  return out
+}
+
 function enforceLimit(limiter, key) {
   const { ok, retryAfterSec } = limiter.take(key)
   if (!ok) {
@@ -509,7 +518,7 @@ async function processJob(job, { aiOnly = false } = {}) {
 
     const analyze = ANALYZERS[job.analysis_type]
     if (!analyze) throw new Error(`Unknown analysis type: ${job.analysis_type}`)
-    const { result: softwareResult, overlay } = analyze(cv, image, umX, umY)
+    const { result: softwareResult, overlay } = analyze(cv, image, umX, umY, analysisOptions(job.analysis_options))
     let overlayPath
     try {
       overlayPath = `${job.organization_id}/${job.id}.png`

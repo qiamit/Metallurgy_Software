@@ -35,6 +35,7 @@ export default function JobDetailPage() {
   const [editType, setEditType] = useState<AnalysisType>("grain_size");
   const [editCalibration, setEditCalibration] = useState("");
   const [editRunAi, setEditRunAi] = useState(true);
+  const [editEtch, setEditEtch] = useState<"line" | "contrast">("line");
   const [editBusy, setEditBusy] = useState(false);
 
   // Reviewed / rejected jobs are signed off: only an admin may re-run or edit them (DB enforces too).
@@ -46,6 +47,7 @@ export default function JobDetailPage() {
     setEditType(data.analysis_type);
     setEditCalibration(data.calibration_id ?? "");
     setEditRunAi(data.run_ai ?? true);
+    setEditEtch(data.analysis_options?.etch === "contrast" ? "contrast" : "line");
     const [src, ov, sample, reviewer] = await Promise.all([
       signedUrl("job-images", data.source_image_path),
       signedUrl("job-overlays", data.overlay_image_path),
@@ -119,6 +121,7 @@ export default function JobDetailPage() {
           analysis_type: editType,
           calibration_id: editCalibration || null,
           run_ai: editRunAi,
+          analysis_options: editType === "grain_size" ? { etch: editEtch } : {},
         }),
       );
       setSearchParams({});
@@ -231,7 +234,7 @@ export default function JobDetailPage() {
         <div className="card p-5 space-y-4">
           <h2 className="font-semibold">Edit Job</h2>
           <p className="text-sm text-[var(--muted)]">
-            Change the module or calibration and re-run the software analysis on the same image.
+            Change the module, calibration or etch type and re-run the software analysis on the same image.
           </p>
           <div className="grid md:grid-cols-3 gap-4">
             <label className="text-sm">
@@ -255,6 +258,15 @@ export default function JobDetailPage() {
                 ))}
               </select>
             </label>
+            {editType === "grain_size" && (
+              <label className="text-sm">
+                <span className="text-xs text-[var(--muted)]">Etch Type</span>
+                <select className="input mt-1" value={editEtch} onChange={(e) => setEditEtch(e.target.value as "line" | "contrast")}>
+                  <option value="line">Boundary Etch (lines)</option>
+                  <option value="contrast">Contrast / Tint Etch (shades, beta)</option>
+                </select>
+              </label>
+            )}
             <label className="text-sm flex items-end gap-2 pb-2">
               <input type="checkbox" checked={editRunAi} onChange={(e) => setEditRunAi(e.target.checked)} />
               Run AI Cross-Check

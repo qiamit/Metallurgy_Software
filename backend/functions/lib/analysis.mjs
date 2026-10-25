@@ -248,6 +248,100 @@ function floodFromSeeds(elev, w, h, seeds) {
   return label
 }
 
+/**
+ * Otsu threshold of an 8-bit image after clipping at its 99th percentile: a few very strong outliers
+ * (dust, pits, inclusions) otherwise pull the threshold above the faint grain boundaries.
+ */
+function clippedOtsu(cv, img) {
+  const d = img.data
+  const hist = new Uint32Array(256)
+  for (let p = 0; p < d.length; p += 1) hist[d[p]] += 1
+  let acc = 0
+  let p99 = 255
+  for (let v = 0; v < 256; v += 1) { acc += hist[v]; if (acc >= 0.99 * d.length) { p99 = v; break } }
+  if (p99 < 255) { for (let v = p99 + 1; v < 256; v += 1) { hist[p99] += hist[v]; hist[v] = 0 } }
+  let sum = 0
+  for (let v = 0; v < 256; v += 1) sum += v * hist[v]
+  let sumB = 0
+  let wB = 0
+  let bestT = 0
+  let bestVar = -1
+  for (let t = 0; t < 256; t += 1) {
+    wB += hist[t]
+    if (!wB) continue
+    const wF = d.length - wB
+    if (!wF) break
+    sumB += t * hist[t]
+    const mB = sumB / wB
+    const mF = (sum - sumB) / wF
+    const between = wB * wF * (mB - mF) ** 2
+    if (between > bestVar) { bestVar = between; bestT = t }
+  }
+  return bestT
+}
+
+/**
+ * Contrast-etched specimens (tinted / colour etch, E112 Plate III style) separate grains by shade more than
+ * by a dark line. Adds the shade gradient to the flooding elevation and one seed for every flat, uniform
+ * interior that holds no seed yet. Used only when the lab selects contrast etch: on line-etched images
+ * shade noise inside grains would split them.
+ */
+function addContrastCue(cv, gray, elev, seeds, width) {
+  const sm = new cv.Mat()
+  const gx = new cv.Mat()
+  const gy = new cv.Mat()
+  const mag = new cv.Mat()
+  const g8 = new cv.Mat()
+  const flat = new cv.Mat()
+  const labels = new cv.Mat()
+  const stats = new cv.Mat()
+  const centroids = new cv.Mat()
+  try {
+    cv.GaussianBlur(gray, sm, new cv.Size(0, 0), 1.5)
+    cv.Sobel(sm, gx, cv.CV_32F, 1, 0)
+    cv.Sobel(sm, gy, cv.CV_32F, 0, 1)
+    cv.magnitude(gx, gy, mag)
+    const m = mag.data32F
+    const sorted = Float32Array.from(m).sort()
+    const p99 = sorted[Math.floor(sorted.length * 0.99)] || 1
+    g8.create(gray.rows, gray.cols, cv.CV_8U)
+    const g = g8.data
+    for (let p = 0; p < m.length; p += 1) g[p] = Math.min(255, (m[p] / p99) * 255)
+    // flat interiors: low gradient, eroded a little so neighbouring grains do not touch
+    cv.threshold(g8, flat, GRAIN_SEG.flatFrac * clippedOtsu(cv, g8), 255, cv.THRESH_BINARY_INV)
+    const k = cv.Mat.ones(3, 3, cv.CV_8U)
+    cv.erode(flat, flat, k, new cv.Point(-1, -1), 2)
+    k.delete()
+    const n = cv.connectedComponentsWithStats(flat, labels, stats, centroids, 8)
+    const lab = labels.data32S
+    const has = new Uint8Array(n)
+    for (const p of seeds) has[lab[p]] = 1
+    const minArea = GRAIN_SEG.flatMinPx
+    const pick = new Int32Array(n).fill(-1)
+    for (let p = 0; p < lab.length; p += 1) {
+      const c = lab[p]
+      if (c && !has[c] && pick[c] < 0 && stats.intAt(c, cv.CC_STAT_AREA) >= minArea) {
+        // a pixel near the component centre
+        const cx = Math.round(centroids.doubleAt(c, 0))
+        const cy = Math.round(centroids.doubleAt(c, 1))
+        const q = cy * gray.cols + cx
+        pick[c] = lab[q] === c ? q : p
+      }
+    }
+    const extra = []
+    for (let c = 1; c < n; c += 1) if (pick[c] >= 0) extra.push(pick[c])
+    const added = extra.length
+    if (added) {
+      seeds.push(...extra)
+      const e = elev.data
+      for (let p = 0; p < e.length; p += 1) if (g[p] > e[p]) e[p] = g[p]
+    }
+    return added
+  } finally {
+    for (const mm of [sm, gx, gy, mag, g8, flat, labels, stats, centroids]) mm.delete()
+  }
+}
+
 /** Typical line thickness of a mask: 2 × median distance-to-edge along its skeleton (px). */
 function lineThickness(cv, mask) {
   if (cv.countNonZero(mask) === 0) return Infinity
@@ -276,6 +370,8 @@ const GRAIN_SEG = {
   seedWidthR: 0.25,
   minPiecePx: 16, // boundary-mask pieces smaller than this are specks
   keepPiecePx: 64, // pieces 16–64 px stay only if they enclose a grain (needles do not)
+  flatFrac: 0.5, // flat = shade gradient below this × its (clipped) Otsu level
+  flatMinPx: 150, // smallest flat interior that gets its own seed
 }
 
 /** Pixels enclosed by component `i` inside its bounding box (holes). */
@@ -312,7 +408,7 @@ function enclosedArea(lab, W0, i, left, top, bw, bh, area) {
  *   then the smoothed image is flooded from the seeds. Every boundary is closed: etch gaps do not merge
  *   grains, and texture inside a grain (martensite needles, carbides) does not add boundaries.
  */
-function grainBoundaries(cv, gray) {
+function grainBoundaries(cv, gray, contrastEtch = false) {
   const darkM = new cv.Mat()
   const brightM = new cv.Mat()
   const work = new cv.Mat()
@@ -342,7 +438,7 @@ function grainBoundaries(cv, gray) {
     const el = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(k, k))
     cv.morphologyEx(work, tophat, cv.MORPH_TOPHAT, el)
     el.delete()
-    cv.threshold(tophat, mask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    cv.threshold(tophat, mask, clippedOtsu(cv, tophat), 255, cv.THRESH_BINARY)
     cv.morphologyEx(mask, mask, cv.MORPH_CLOSE, closeK, new cv.Point(-1, -1), 1)
 
     const w = gray.cols
@@ -369,6 +465,7 @@ function grainBoundaries(cv, gray) {
     cv.distanceTransform(interior, dt, cv.DIST_L2, 3)
     const seeds = grainSeeds(dt.data32F, w, h, GRAIN_SEG.seedRatio, Math.max(GRAIN_SEG.seedMinR, width * GRAIN_SEG.seedWidthR))
     cv.GaussianBlur(work, elev, new cv.Size(0, 0), Math.max(1, width / 2))
+    if (contrastEtch) addContrastCue(cv, gray, elev, seeds, width)
     const region = floodFromSeeds(elev.data, w, h, seeds)
     const skeleton = cv.Mat.zeros(h, w, cv.CV_8U)
     const sd = skeleton.data
@@ -381,6 +478,7 @@ function grainBoundaries(cv, gray) {
     return { skeleton, lightBoundaries, boundaryWidthPx: width, seeds: seeds.length }
   } finally {
     for (const mm of [darkM, brightM, work, tophat, mask, closeK, labels, stats, centroids, interior, dt, elev]) mm.delete()
+
     if (netBright) netBright.delete()
     if (netDark) netDark.delete()
   }
@@ -400,8 +498,8 @@ function countCrossings(values, minGap = 3) {
 }
 
 /** One measurement pass at the given working resolution. Caller deletes `skeleton`. */
-function measureGrains(cv, gray, um) {
-  const { skeleton, lightBoundaries, boundaryWidthPx } = grainBoundaries(cv, gray)
+function measureGrains(cv, gray, um, contrastEtch) {
+  const { skeleton, lightBoundaries, boundaryWidthPx } = grainBoundaries(cv, gray, contrastEtch)
   const h = gray.rows
   const w = gray.cols
   const sk = skeleton.data
@@ -483,7 +581,10 @@ function measureGrains(cv, gray, um) {
 const GRAIN_MAX_SIDE = 1200
 const GRAIN_TARGET_INTERCEPT_PX = 40
 
-export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
+export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1, options = {}) {
+  // etch: 'line' (boundaries etched as lines, E112 Plates I/II/IV — default) or 'contrast' (grains told
+  // apart by shade / tint, E112 Plate III)
+  const contrastEtch = options.etch === 'contrast'
   const gray = new cv.Mat()
   const overlay = imageBgr.clone()
   let work = null
@@ -499,9 +600,11 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     work = new cv.Mat()
     if (scale < 1) cv.resize(gray, work, new cv.Size(Math.round(W * scale), Math.round(H * scale)), 0, 0, cv.INTER_AREA)
     else gray.copyTo(work)
-    m = measureGrains(cv, work, um0 / scale)
+    m = measureGrains(cv, work, um0 / scale, contrastEtch)
     let passes = 1
-    while (m.interceptPx > GRAIN_TARGET_INTERCEPT_PX * 1.2 && passes < 4) {
+    // contrast etch: no adaptive rescaling (the shade cue works at native resolution and a poor first pass
+    // would otherwise shrink the image further)
+    while (!contrastEtch && m.interceptPx > GRAIN_TARGET_INTERCEPT_PX * 1.2 && passes < 4) {
       const next = scale * (GRAIN_TARGET_INTERCEPT_PX / m.interceptPx)
       const nw = Math.round(W * next)
       const nh = Math.round(H * next)
@@ -509,18 +612,18 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       scale = next
       cv.resize(gray, work, new cv.Size(nw, nh), 0, 0, cv.INTER_AREA)
       m.skeleton.delete()
-      m = measureGrains(cv, work, um0 / scale)
+      m = measureGrains(cv, work, um0 / scale, contrastEtch)
       passes += 1
     }
     // very fine grains: work above native resolution so each grain interior still holds a seed
     const maxUp = 2
-    if (m.interceptPx < GRAIN_TARGET_INTERCEPT_PX / 1.6 && scale < maxUp) {
+    if (!contrastEtch && m.interceptPx < GRAIN_TARGET_INTERCEPT_PX / 1.6 && scale < maxUp) {
       const next = Math.min(maxUp, scale * (GRAIN_TARGET_INTERCEPT_PX / 1.6 / m.interceptPx))
       if (next > scale * 1.15) {
         scale = next
         cv.resize(gray, work, new cv.Size(Math.round(W * scale), Math.round(H * scale)), 0, 0, cv.INTER_CUBIC)
         m.skeleton.delete()
-        m = measureGrains(cv, work, um0 / scale)
+        m = measureGrains(cv, work, um0 / scale, contrastEtch)
       }
     }
     const um = um0 / scale
@@ -577,6 +680,13 @@ export function analyzeGrainSize(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       duplex_coarse_area_percent: round(duplexPct, 1),
       duplex_suspected: duplexPct >= 10 && coarseGrains >= 3,
       boundary_polarity: m.lightBoundaries ? 'light boundaries on dark grains' : 'dark boundaries on light grains',
+      etch_mode: contrastEtch ? 'contrast (tint) etch' : 'line etch',
+      etch_mode_note: contrastEtch ? 'Contrast-etch mode (beta): twin bands that differ in shade are counted as grains — check the overlay.' : null,
+      // fewer than ~8 px per mean intercept at the image's own resolution: boundaries are not resolved
+      resolution_warning:
+        meanUm > 0 && meanUm / um0 < 8
+          ? `Grains are only ~${round(meanUm / um0, 1)} px across: G is unreliable — capture at a higher magnification (aim for ≥ 15 px per grain).`
+          : null,
       working_scale: round(scale, 3),
       um_per_px_x: umPerPxX,
       um_per_px_y: umPerPxY,
@@ -887,71 +997,146 @@ export function analyzeInclusion(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
 // ---------------------------------------------------------------------------
 // Decarburization — ISO 3887
 // ---------------------------------------------------------------------------
-export function analyzeDecarb(cv, imageBgr, umPerPxX = 1, _umPerPxY = 1) {
+// Surface side → rotation that brings it to the left edge (and back for the overlay).
+const TO_LEFT = { left: null, right: 'ROTATE_180', top: 'ROTATE_90_COUNTERCLOCKWISE', bottom: 'ROTATE_90_CLOCKWISE' }
+const FROM_LEFT = { left: null, right: 'ROTATE_180', top: 'ROTATE_90_CLOCKWISE', bottom: 'ROTATE_90_COUNTERCLOCKWISE' }
+
+/** Mean of each column of an 8-bit or float single-channel Mat → Float64Array (length = cols). */
+function columnMeans(m) {
+  const w = m.cols
+  const h = m.rows
+  const d = m.type() === 5 ? m.data32F : m.data
+  const out = new Float64Array(w)
+  for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) out[x] += d[y * w + x]
+  for (let x = 0; x < w; x += 1) out[x] /= h
+  return out
+}
+
+function smooth1d(a, r) {
+  const out = new Float64Array(a.length)
+  for (let i = 0; i < a.length; i += 1) {
+    let s = 0
+    let n = 0
+    for (let k = Math.max(0, i - r); k <= Math.min(a.length - 1, i + r); k += 1) { s += a[k]; n += 1 }
+    out[i] = s / n
+  }
+  return out
+}
+
+/**
+ * Decarburization — ISO 3887 metallographic method.
+ * 1. Free surface: the side where the image starts with a band clearly darker than the specimen (mounting
+ *    resin / air); without one, the side whose outer zone is lightest (ferrite) is taken.
+ * 2. Brightness profile inward from the surface (decarburized ferrite is light, the core darker: pearlite
+ *    or martensite). Core level = median of the inner half of the profile.
+ * 3. Complete decarburization: depth while the profile stays within 10 % of the surface-zone level (ferrite
+ *    only). Total decarburization: depth where it first comes within 10 % of the core level.
+ * The surface must run roughly parallel to an image edge.
+ */
+export function analyzeDecarb(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   const gray = new cv.Mat()
-  const overlay = imageBgr.clone()
-  let profileMat = null
-  const smoothMat = new cv.Mat()
+  const blur = new cv.Mat()
+  const rg = new cv.Mat()
+  let overlay = null
   try {
     cv.cvtColor(imageBgr, gray, cv.COLOR_BGR2GRAY)
-    const h = gray.rows
-    const w = gray.cols
-    const g = gray.data
-    // Assume left edge is free surface; measure transition of mean intensity profile
-    const profile = new Float32Array(w)
-    for (let x = 0; x < w; x += 1) {
-      let sum = 0
-      for (let y = 0; y < h; y += 1) sum += g[y * w + x]
-      profile[x] = sum / h
+    cv.GaussianBlur(gray, blur, new cv.Size(0, 0), 1.5)
+    const bd = blur.data
+    const sortedI = Uint8Array.from(bd).sort()
+    const medI = sortedI[Math.floor(sortedI.length / 2)]
+    // pick the surface side: the mount (resin / air) is an edge band clearly darker than the specimen
+    const sides = []
+    for (const side of ['left', 'right', 'top', 'bottom']) {
+      const rot = TO_LEFT[side]
+      if (rot) cv.rotate(blur, rg, cv[rot])
+      else blur.copyTo(rg)
+      const ip = smooth1d(columnMeans(rg), 2)
+      // darkest point of the outer 15 % (image borders / frame lines can make the first columns brighter)
+      const band = Math.max(3, Math.round(ip.length * 0.15))
+      let dark = 0
+      for (let i = 1; i < band; i += 1) if (ip[i] < ip[dark]) dark = i
+      const outerI = ip[dark]
+      const mount = outerI < 0.5 * medI
+      // surface = first column after it that is brighter than halfway between the mount and the specimen
+      let surface = 0
+      if (mount) { surface = dark; while (surface < ip.length - 1 && ip[surface] < (outerI + medI) / 2) surface += 1 }
+      let edgeI = 0
+      const n = Math.max(3, Math.round(ip.length * 0.1))
+      for (let i = surface; i < Math.min(ip.length, surface + n); i += 1) edgeI += ip[i] / n
+      sides.push({ side, mount, outerI, edgeI, surface, profile: ip, len: ip.length })
     }
-    profileMat = cv.matFromArray(1, w, cv.CV_32F, Array.from(profile))
-    cv.GaussianBlur(profileMat, smoothMat, new cv.Size(1, 31), 0)
-    const smooth = smoothMat.data32F
-    // np.gradient: central differences inside, one-sided at the ends
-    const grad = new Float64Array(w)
-    for (let i = 0; i < w; i += 1) {
-      if (w === 1) grad[i] = 0
-      else if (i === 0) grad[i] = Math.abs(smooth[1] - smooth[0])
-      else if (i === w - 1) grad[i] = Math.abs(smooth[w - 1] - smooth[w - 2])
-      else grad[i] = Math.abs((smooth[i + 1] - smooth[i - 1]) / 2)
+    // a mount side first (darkest), otherwise the side whose outer zone is lightest (ferrite)
+    sides.sort((a, b) => (a.mount === b.mount ? (a.mount ? a.outerI - b.outerI : b.edgeI - a.edgeI) : a.mount ? -1 : 1))
+    const S = sides[0]
+    const um = S.side === 'left' || S.side === 'right' ? umPerPxX : umPerPxY
+    const prof = smooth1d(S.profile, Math.max(2, Math.round(S.len * 0.01)))
+    const inner = Array.from(prof.slice(S.surface + Math.floor((S.len - S.surface) / 2))).sort((a, b) => a - b)
+    const core = inner[Math.floor(inner.length / 2)]
+    const zoneN = Math.max(3, Math.round((S.len - S.surface) * 0.05))
+    let surfLevel = -Infinity
+    for (let i = S.surface; i < Math.min(S.len, S.surface + zoneN * 2); i += 1) surfLevel = Math.max(surfLevel, prof[i])
+    const span = surfLevel - core
+    let completePx = 0
+    let totalPx = 0
+    const measurable = span > 8 // grey levels: a lighter surface zone exists
+    if (measurable) {
+      let i = S.surface
+      while (i < S.len && prof[i] < surfLevel - 0.1 * span) i += 1 // step over the surface edge itself
+      let j = i
+      while (j < S.len && prof[j] >= surfLevel - 0.1 * span) j += 1
+      completePx = Math.max(0, j - S.surface)
+      while (j < S.len && prof[j] > core + 0.1 * span) j += 1
+      totalPx = Math.max(completePx, j - S.surface)
     }
-    // Search transition in outer 40% of width
-    const searchLen = Math.min(w, Math.max(10, Math.trunc(w * 0.4)))
-    let edgeIdx = 0
-    for (let i = 1; i < searchLen; i += 1) if (grad[i] > grad[edgeIdx]) edgeIdx = i
-    const depthUm = edgeIdx * umPerPxX
+    const completeUm = completePx * um
+    const totalUm = totalPx * um
 
-    cv.line(overlay, new cv.Point(edgeIdx, 0), new cv.Point(edgeIdx, h - 1), color(cv, 0, 0, 255), 2)
-    cv.line(overlay, new cv.Point(0, 0), new cv.Point(0, h - 1), color(cv, 0, 255, 0), 2)
-    cv.putText(
-      overlay,
-      `Decarb depth ~ ${depthUm.toFixed(1)} um`,
-      new cv.Point(10, 24),
-      cv.FONT_HERSHEY_SIMPLEX,
-      0.7,
-      color(cv, 0, 0, 255),
-      2,
-    )
+    // overlay drawn in the surface-left frame, then rotated back
+    const rot = TO_LEFT[S.side]
+    overlay = new cv.Mat()
+    if (rot) cv.rotate(imageBgr, overlay, cv[rot])
+    else imageBgr.copyTo(overlay)
+    const H = overlay.rows
+    const line = (x, c) => cv.line(overlay, new cv.Point(x, 0), new cv.Point(x, H - 1), c, 2)
+    line(S.surface, color(cv, 0, 255, 0))
+    if (measurable) {
+      line(S.surface + completePx, color(cv, 0, 200, 255))
+      line(S.surface + totalPx, color(cv, 0, 0, 255))
+    }
+    const back = FROM_LEFT[S.side]
+    if (back) { const tmp = new cv.Mat(); cv.rotate(overlay, tmp, cv[back]); overlay.delete(); overlay = tmp }
+    cv.putText(overlay, measurable ? `Decarb total ${totalUm.toFixed(1)} um, complete ${completeUm.toFixed(1)} um` : 'No decarburized layer found', new cv.Point(10, 24), cv.FONT_HERSHEY_SIMPLEX, 0.7, color(cv, 0, 0, 255), 2)
 
     const result = {
       standard: 'ISO 3887:2017',
-      method: 'metallographic_edge_transition',
-      decarb_depth_um: round(depthUm, 2),
-      decarb_depth_mm: round(depthUm / 1000, 5),
-      edge_pixel: edgeIdx,
-      notes: 'Assumes free surface on image left. Reorient sample if needed.',
+      method: 'metallographic profile from the free surface',
+      decarb_depth_um: round(totalUm, 2),
+      decarb_depth_mm: round(totalUm / 1000, 5),
+      total_decarb_depth_um: round(totalUm, 2),
+      complete_decarb_depth_um: round(completeUm, 2),
+      surface_side: S.side,
+      surface_found_by: S.mount ? 'mounting / background band' : 'lightest edge (no mount visible)',
+      decarb_detected: measurable,
+      notes:
+        'Green = free surface, yellow = end of complete decarburization (ferrite only), red = total decarburization ' +
+        '(structure back to core). The surface must run roughly parallel to an image edge; etch (nital) and ' +
+        'image the edge so the mount is visible.',
     }
     return { result, overlay }
+  } catch (err) {
+    if (overlay) overlay.delete()
+    throw err
   } finally {
-    gray.delete()
-    smoothMat.delete()
-    if (profileMat) profileMat.delete()
+    for (const m of [gray, blur, rg]) m.delete()
   }
 }
 
 // ---------------------------------------------------------------------------
 // Micro — phase area fractions
 // ---------------------------------------------------------------------------
+// Light-class / dark-class local texture above this → the light class is not smooth ferrite. Real ferrite–
+// pearlite micrographs gave 0.16 and 0.42; fully pearlitic / tinted low-magnification fields 0.80–0.89.
+const MICRO_FERRITE_TEXTURE_RATIO = 0.6
 export function analyzeMicro(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   const gray = new cv.Mat()
   const blur = new cv.Mat()
@@ -968,6 +1153,29 @@ export function analyzeMicro(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
     const lightFrac = total ? cv.countNonZero(binary) / total : 0
     const darkFrac = 1 - lightFrac
 
+    // Is the light phase ferrite? Ferrite grains are smooth; when the light class is about as textured as
+    // the dark one, the field is fully pearlitic / tinted and the two classes are two shades of one phase.
+    const g32 = new cv.Mat()
+    const m = new cv.Mat()
+    const m2 = new cv.Mat()
+    gray.convertTo(g32, cv.CV_32F)
+    cv.blur(g32, m, new cv.Size(7, 7))
+    cv.multiply(g32, g32, m2)
+    cv.blur(m2, m2, new cv.Size(7, 7))
+    const md = m.data32F
+    const m2d = m2.data32F
+    const bd = binary.data
+    const sdLight = []
+    const sdDark = []
+    for (let p = 0; p < bd.length; p += 7) {
+      const sd = Math.sqrt(Math.max(0, m2d[p] - md[p] * md[p]))
+      ;(bd[p] ? sdLight : sdDark).push(sd)
+    }
+    for (const mm of [g32, m, m2]) mm.delete()
+    const median = (a) => (a.length ? a.sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0)
+    const textureRatio = median(sdDark) > 0 ? median(sdLight) / median(sdDark) : 1
+    const lightIsFerrite = textureRatio < MICRO_FERRITE_TEXTURE_RATIO
+
     zeros.create(binary.rows, binary.cols, cv.CV_8U)
     zeros.setTo(new cv.Scalar(0))
     planes.push_back(zeros)
@@ -982,7 +1190,15 @@ export function analyzeMicro(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       light_phase_fraction: round(lightFrac, 4),
       dark_phase_fraction: round(darkFrac, 4),
       field_area_um2: round(areaUm2, 2),
-      notes: 'Binary phase split via Otsu. Extend with trained classifiers as needed.',
+      light_phase_texture_ratio: round(textureRatio, 2),
+      light_phase_is_ferrite: lightIsFerrite,
+      warning: lightIsFerrite
+        ? null
+        : 'The light phase is as textured as the dark one: probably fully pearlitic, tinted or low magnification. ' +
+          'Phase fractions do not mean ferrite / pearlite here — no carbon estimate.',
+      notes:
+        'Two-phase split (Otsu). For ferrite–pearlite steels image a nital-etched section at 100–500× so ferrite ' +
+        'grains are smooth and pearlite is dark.',
     }
     return { result, overlay }
   } catch (err) {
@@ -1044,7 +1260,7 @@ export function analyzeMacro(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
  * Dark graphite particles on a light (unetched or lightly etched) matrix.
  * Returns per particle: area µm², max Feret µm (min enclosing circle), roundness = 4A / (π·Fmax²).
  */
-function graphiteParticles(cv, gray, um) {
+function graphiteParticles(cv, gray, um, closePx = 0) {
   const blur = new cv.Mat()
   const bin = new cv.Mat()
   const contours = new cv.MatVector()
@@ -1056,6 +1272,12 @@ function graphiteParticles(cv, gray, um) {
     const k = cv.Mat.ones(3, 3, cv.CV_8U)
     cv.morphologyEx(bin, bin, cv.MORPH_OPEN, k)
     k.delete()
+    if (closePx > 1) {
+      // flakes: rejoin a thin flake broken at faint spots (does not merge separate flakes much at this size)
+      const kc = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(closePx, closePx))
+      cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, kc)
+      kc.delete()
+    }
     cv.findContours(bin, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
     const W = gray.cols
     const H = gray.rows
@@ -1156,7 +1378,7 @@ export function analyzeNodularity(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
 
 // ---------------------------------------------------------------------------
 // Graphite flakes — ASTM A247 / ISO 945-1 (grey iron)
-// Size class from the 95th-percentile flake length, A247 Table 1 classes.
+// Size class from the longest flakes (mean of the 5 longest), A247 Table 1 classes.
 // ---------------------------------------------------------------------------
 export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   const gray = new cv.Mat()
@@ -1165,17 +1387,18 @@ export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
   try {
     cv.cvtColor(imageBgr, gray, cv.COLOR_BGR2GRAY)
     const um = (umPerPxX + umPerPxY) / 2
-    const found = graphiteParticles(cv, gray, um)
+    const found = graphiteParticles(cv, gray, um, 5)
     particles = found.particles
     const flakes = particles.filter((p) => p.feretUm >= 5)
     const lengths = flakes.map((p) => p.feretUm).sort((a, b) => b - a)
     const top = lengths.slice(0, Math.min(5, lengths.length))
     const longest = top.length ? top.reduce((s, v) => s + v, 0) / top.length : 0
     const median = lengths.length ? lengths[Math.floor(lengths.length / 2)] : 0
-    // Size from the 95th-percentile flake length: the longest few flakes are often touching flakes merged
-    // into one (crowded classes 7–8). On A247 Plate I this rated classes 3–8 correctly (top-5 mean: 4/8).
+    // A247 rates size by the longest flakes: mean of the 5 longest. (The 95th percentile matched the drawn
+    // chart's crowded classes 7–8 better but rated real grey-iron fields 1–2 classes too fine, because long
+    // thin flakes leave many short fragments.)
     const p95 = lengths.length ? lengths[Math.min(lengths.length - 1, Math.floor(lengths.length * 0.05))] : 0
-    const sizeClass = p95 > 0 ? a247SizeClass(p95) : null
+    const sizeClass = longest > 0 ? a247SizeClass(longest) : null
     // longest flakes cut by the field edge are longer than measured: the class is then this or coarser
     const cutByEdge = flakes
       .slice()
@@ -1224,7 +1447,7 @@ export function analyzeGraphiteFlake(cv, imageBgr, umPerPxX = 1, umPerPxY = 1) {
       median_flake_spacing_um: round(spacing, 1),
       graphite_type_hint: typeHint,
       notes:
-        'Unetched section at 100×. Size class from the 95th-percentile flake length; the 5 longest flakes are red. Graphite type A–E is a hint ' +
+        'Unetched section at 100×. Size class from the 5 longest flakes (red). Graphite type A–E is a hint ' +
         'only — compare with the A247 Plate II chart and confirm.',
     }
     return { result, overlay }

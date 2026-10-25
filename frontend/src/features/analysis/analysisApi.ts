@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabaseClient'
 import { callFunction } from '@/lib/functionsClient'
 import { removeLabFiles, uploadLabFile } from '@/lib/storage'
-import type { AnalysisJob, AnalysisType, DashboardStats } from '@/types'
+import type { AnalysisJob, AnalysisOptions, AnalysisType, DashboardStats } from '@/types'
 
 const JOB_COLUMNS =
-  'id, organization_id, sample_id, calibration_id, analysis_type, status, run_ai, source_image_path, ' +
+  'id, organization_id, sample_id, calibration_id, analysis_type, status, run_ai, analysis_options, source_image_path, ' +
   'overlay_image_path, software_result, ai_result, comparison, error_message, reviewed_by, review_notes, ' +
   'reviewed_at, created_at, completed_at'
 
@@ -38,6 +38,7 @@ export async function createAndRunJob(params: {
   analysisType: AnalysisType
   calibrationId: string | null
   runAi: boolean
+  analysisOptions?: AnalysisOptions
   image: Blob
 }): Promise<AnalysisJob> {
   if (!params.image.size) throw new Error('Empty file')
@@ -51,6 +52,7 @@ export async function createAndRunJob(params: {
       calibration_id: params.calibrationId,
       analysis_type: params.analysisType,
       run_ai: params.runAi,
+      analysis_options: params.analysisOptions ?? {},
       source_image_path: path,
       created_by: auth.user?.id,
     })
@@ -72,7 +74,12 @@ export async function rerunAi(jobId: string): Promise<AnalysisJob> {
 /** Change module / calibration and re-run the software analysis. */
 export async function updateJobAndRerun(
   jobId: string,
-  fields: { analysis_type: AnalysisType; calibration_id: string | null; run_ai: boolean },
+  fields: {
+    analysis_type: AnalysisType
+    calibration_id: string | null
+    run_ai: boolean
+    analysis_options?: AnalysisOptions
+  },
 ): Promise<AnalysisJob> {
   const { error } = await supabase.from('analysis_jobs').update(fields).eq('id', jobId)
   if (error) throw new Error(error.message)
