@@ -27,7 +27,7 @@ export default function UnitConverterTab() {
   return (
     <div className="space-y-6">
       <div className="card p-4">
-        <div className="form-grid">
+        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="field">
             <span>Quantity</span>
             <select className="input" value={catId} onChange={(e) => changeCategory(e.target.value)}>
@@ -53,7 +53,7 @@ export default function UnitConverterTab() {
             </select>
           </label>
           <label className="field">
-            <span>Significant digits</span>
+            <span>Significant Digits</span>
             <select className="input" value={sig} onChange={(e) => setSig(Number(e.target.value))}>
               {[3, 4, 5, 6, 8, 10, 12].map((n) => (
                 <option key={n} value={n}>
@@ -98,11 +98,11 @@ export default function UnitConverterTab() {
       </div>
 
       <div className="card overflow-x-auto max-w-2xl">
-        <table className="w-full text-sm">
+        <table className="table-grid w-full text-sm">
           <thead className="table-head">
             <tr>
               <th className="text-left px-4 py-3">Unit</th>
-              <th className="text-right px-4 py-3">Value</th>
+              <th className="text-center px-4 py-3">Value</th>
               <th className="px-2 py-3 w-10" />
             </tr>
           </thead>
@@ -116,7 +116,7 @@ export default function UnitConverterTab() {
                   className={`border-t border-[var(--line)] ${u.id === from ? 'bg-[var(--accent-soft)]' : ''}`}
                 >
                   <td className="px-4 py-2">{u.label}</td>
-                  <td className="px-4 py-2 text-right font-mono">{s}</td>
+                  <td className="px-4 py-2 text-center font-mono">{s}</td>
                   <td className="px-2 py-1">{valid && <CopyButton text={s} />}</td>
                 </tr>
               )

@@ -7,9 +7,9 @@ import UnitConverterTab from '@/features/constants/UnitConverterTab'
 import MetallurgyTab from '@/features/constants/MetallurgyTab'
 
 const TABS = [
-  { id: 'physical', label: 'Physical constants' },
+  { id: 'physical', label: 'Physical Constants' },
   { id: 'materials', label: 'Materials' },
-  { id: 'units', label: 'Unit converter' },
+  { id: 'units', label: 'Unit Converter' },
   { id: 'metallurgy', label: 'Metallurgy' },
 ] as const
 

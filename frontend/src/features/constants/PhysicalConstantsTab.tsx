@@ -14,13 +14,13 @@ export default function PhysicalConstantsTab({ query }: { query: string }) {
   return (
     <div className="space-y-4">
       <div className="card overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="table-grid w-full text-sm">
           <thead className="table-head">
             <tr>
               <th className="text-left px-4 py-3">Quantity</th>
-              <th className="text-left px-4 py-3">Symbol</th>
-              <th className="text-right px-4 py-3">Value</th>
-              <th className="text-left px-4 py-3">Unit</th>
+              <th className="text-center px-4 py-3">Symbol</th>
+              <th className="text-center px-4 py-3">Value</th>
+              <th className="text-center px-4 py-3">Unit</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -28,7 +28,7 @@ export default function PhysicalConstantsTab({ query }: { query: string }) {
             {rows.map((c) => (
               <tr key={c.name} className="border-t border-[var(--line)]">
                 <td className="px-4 py-2">{c.name}</td>
-                <td className="px-4 py-2 font-serif italic">
+                <td className="px-4 py-2 text-center font-serif italic">
                   {c.symbol.includes('_') ? (
                     <>
                       {c.symbol.split('_')[0]}
@@ -38,14 +38,14 @@ export default function PhysicalConstantsTab({ query }: { query: string }) {
                     c.symbol
                   )}
                 </td>
-                <td className="px-4 py-2 text-right font-mono whitespace-nowrap">
+                <td className="px-4 py-2 text-center font-mono whitespace-nowrap">
                   <span className="inline-flex items-center gap-1">
                     {c.value}
                     <CopyButton text={c.numeric} />
                   </span>
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap">{c.unit}</td>
-                <td className="px-4 py-2">{c.exact && <span className="badge badge-ok">exact</span>}</td>
+                <td className="px-4 py-2 text-center whitespace-nowrap">{c.unit}</td>
+                <td className="px-4 py-2 text-center">{c.exact && <span className="badge badge-ok">exact</span>}</td>
               </tr>
             ))}
             {rows.length === 0 && (

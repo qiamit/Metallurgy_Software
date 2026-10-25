@@ -19,16 +19,16 @@ export default function MaterialsTab() {
     <div className="space-y-6">
       <div className="card">
         <div className="flex items-center justify-between px-4 pt-4">
-          <h2 className="section-title flex-1">Engineering materials · 20 °C</h2>
+          <h2 className="section-title flex-1">Engineering Materials · 20 °C</h2>
           <span className="badge badge-muted ml-3 mb-[0.9rem]">typical</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="table-grid w-full text-sm">
             <thead className="table-head">
               <tr>
                 <th className="text-left px-4 py-3">Material</th>
                 {COLUMNS.map((c) => (
-                  <th key={c.key} className="text-right px-3 py-3 whitespace-nowrap normal-case">
+                  <th key={c.key} className="text-center px-3 py-3 whitespace-nowrap normal-case">
                     <div>{c.label}</div>
                     <div className="font-normal opacity-80">{c.unit}</div>
                   </th>
@@ -42,7 +42,7 @@ export default function MaterialsTab() {
                   {COLUMNS.map((c) => {
                     const v = m[c.key]
                     return (
-                      <td key={c.key} className="px-3 py-2 text-right font-mono whitespace-nowrap">
+                      <td key={c.key} className="px-3 py-2 text-center font-mono whitespace-nowrap">
                         {v == null ? <span className="text-[var(--muted)]">—</span> : v}
                       </td>
                     )
@@ -56,13 +56,13 @@ export default function MaterialsTab() {
 
       <div className="card max-w-2xl">
         <h2 className="section-title px-4 pt-4">Iron &amp; steel</h2>
-        <table className="w-full text-sm">
+        <table className="table-grid w-full text-sm">
           <tbody>
             {FE_CONSTANTS.map((f) => (
               <tr key={f.name} className="border-t border-[var(--line)]">
                 <td className="px-4 py-2">{f.name}</td>
-                <td className="px-4 py-2 text-right font-mono whitespace-nowrap">{f.value}</td>
-                <td className="px-4 py-2 text-[var(--muted)] whitespace-nowrap">{f.note}</td>
+                <td className="px-4 py-2 text-center font-mono whitespace-nowrap">{f.value}</td>
+                <td className="px-4 py-2 text-center text-[var(--muted)] whitespace-nowrap">{f.note}</td>
               </tr>
             ))}
           </tbody>

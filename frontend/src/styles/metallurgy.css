@@ -273,6 +273,21 @@ table tbody tr:hover {
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
+/* Full grid table: every cell bordered */
+.table-grid {
+  border-collapse: collapse;
+}
+
+.table-grid th,
+.table-grid td {
+  border: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table-grid thead th {
+  border-color: var(--sidebar-border);
+}
+
 /* ---- Badges (tinted from the status colour, so they work in light and dark themes) ---- */
 .badge {
   display: inline-flex;

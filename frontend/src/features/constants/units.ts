@@ -84,7 +84,7 @@ export const UNIT_CATEGORIES: UnitCategory[] = [
   },
   {
     id: 'stress',
-    label: 'Stress / pressure',
+    label: 'Stress / Pressure',
     units: [
       u('Pa', 1), u('kPa', 1e3), u('MPa', 1e6), u('GPa', 1e9), u('N/mm²', 1e6), u('kgf/mm²', G_N * 1e6),
       u('kgf/cm²', G_N * 1e4), u('psi', PSI), u('ksi', PSI * 1000), u('bar', 1e5), u('mbar', 100), u('atm', ATM),
@@ -93,7 +93,7 @@ export const UNIT_CATEGORIES: UnitCategory[] = [
   },
   {
     id: 'energy',
-    label: 'Energy / impact',
+    label: 'Energy / Impact',
     units: [
       u('J', 1), u('kJ', 1e3), u('MJ', 1e6), u('kWh', 3.6e6), u('cal', CAL_IT, 'cal (IT)'), u('kcal', CAL_IT * 1000),
       u('eV', 1.602176634e-19), u('BTU', BTU_IT, 'BTU (IT)'), u('ft·lbf', FOOT * LBF), u('kgf·m', G_N), u('erg', 1e-7),
@@ -126,20 +126,20 @@ export const UNIT_CATEGORIES: UnitCategory[] = [
   },
   {
     id: 'toughness',
-    label: 'Fracture toughness',
+    label: 'Fracture Toughness',
     // SI coherent: MPa·√m
     units: [u('MPa·√m', 1), u('ksi·√in', (PSI * 1000 * Math.sqrt(INCH)) / 1e6), u('N/mm^1.5', Math.sqrt(1e-3))],
   },
   {
     id: 'conductivity',
-    label: 'Thermal conductivity',
+    label: 'Thermal Conductivity',
     units: [
       u('W/(m·K)', 1), u('BTU/(h·ft·°F)', (BTU_IT / 3600 / FOOT) * 1.8), u('cal/(s·cm·°C)', CAL_IT * 100),
     ],
   },
   {
     id: 'specificHeat',
-    label: 'Specific heat',
+    label: 'Specific Heat',
     units: [
       u('J/(kg·K)', 1), u('kJ/(kg·K)', 1000), u('BTU/(lb·°F)', (BTU_IT / POUND) * 1.8), u('cal/(g·°C)', CAL_IT * 1000),
     ],

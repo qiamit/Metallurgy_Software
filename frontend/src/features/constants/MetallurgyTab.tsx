@@ -75,11 +75,11 @@ function CompositionCard() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <table className="w-full text-sm">
+        <table className="table-grid w-full text-sm">
           <thead className="table-head">
             <tr>
               <th className="text-left px-3 py-2">Element</th>
-              <th className="text-right px-3 py-2">{inUnit}</th>
+              <th className="text-center px-3 py-2">{inUnit}</th>
               <th className="px-3 py-2">Bal.</th>
               <th className="w-8" />
             </tr>
@@ -108,7 +108,7 @@ function CompositionCard() {
                     </div>
                   ) : (
                     <input
-                      className="input text-right font-mono"
+                      className="input text-center font-mono"
                       inputMode="decimal"
                       aria-label={`${r.symbol} amount`}
                       value={r.amount}
@@ -148,7 +148,7 @@ function CompositionCard() {
                   <Plus size={14} /> Add
                 </button>
               </td>
-              <td className={`px-3 py-2 text-right font-mono ${Math.abs(total - 100) > 1e-6 ? 'text-[var(--warn)]' : 'text-[var(--muted)]'}`}>
+              <td className={`px-3 py-2 text-center font-mono ${Math.abs(total - 100) > 1e-6 ? 'text-[var(--warn)]' : 'text-[var(--muted)]'}`}>
                 Σ {formatSig(total, 6)}
               </td>
               <td colSpan={2} />
@@ -156,20 +156,20 @@ function CompositionCard() {
           </tbody>
         </table>
 
-        <table className="w-full text-sm self-start">
+        <table className="table-grid w-full text-sm self-start">
           <thead className="table-head">
             <tr>
               <th className="text-left px-3 py-2">Element</th>
-              <th className="text-right px-3 py-2">wt %</th>
-              <th className="text-right px-3 py-2">at %</th>
+              <th className="text-center px-3 py-2">wt %</th>
+              <th className="text-center px-3 py-2">at %</th>
             </tr>
           </thead>
           <tbody>
             {results.map((r, i) => (
               <tr key={`${r.symbol}-${i}`} className="border-t border-[var(--line)]">
                 <td className="px-3 py-2 font-medium">{r.symbol}</td>
-                <td className="px-3 py-2 text-right font-mono">{r.wt.toFixed(3)}</td>
-                <td className="px-3 py-2 text-right font-mono">{r.at.toFixed(3)}</td>
+                <td className="px-3 py-2 text-center font-mono">{r.wt.toFixed(3)}</td>
+                <td className="px-3 py-2 text-center font-mono">{r.at.toFixed(3)}</td>
               </tr>
             ))}
             {results.length === 0 && (
@@ -252,7 +252,7 @@ function GrainSizeCard() {
 
   return (
     <div className="card p-4">
-      <h2 className="section-title">Grain size · ASTM E112</h2>
+      <h2 className="section-title">Grain Size · ASTM E112</h2>
       <div className="form-grid">
         <label className="field">
           <span>Input</span>
@@ -280,14 +280,14 @@ function GrainSizeCard() {
       </div>
 
       <div className="mt-6 overflow-x-auto">
-        <table className="w-full text-sm max-w-2xl">
+        <table className="table-grid w-full text-sm max-w-2xl">
           <thead className="table-head">
             <tr>
               <th className="text-left px-3 py-2">G</th>
-              <th className="text-right px-3 py-2 normal-case">n /in² at 100×</th>
-              <th className="text-right px-3 py-2 normal-case">N_A /mm²</th>
-              <th className="text-right px-3 py-2 normal-case">ℓ µm</th>
-              <th className="text-right px-3 py-2 normal-case">d µm</th>
+              <th className="text-center px-3 py-2 normal-case">n /in² at 100×</th>
+              <th className="text-center px-3 py-2 normal-case">N_A /mm²</th>
+              <th className="text-center px-3 py-2 normal-case">ℓ µm</th>
+              <th className="text-center px-3 py-2 normal-case">d µm</th>
             </tr>
           </thead>
           <tbody>
@@ -297,10 +297,10 @@ function GrainSizeCard() {
                 className={`border-t border-[var(--line)] ${r && Math.round(r.G) === g.G ? 'bg-[var(--accent-soft)]' : ''}`}
               >
                 <td className="px-3 py-1.5 font-mono">{label}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{formatSig(g.n, 4)}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{formatSig(g.NA, 4)}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{formatSig(g.lMm * 1000, 3)}</td>
-                <td className="px-3 py-1.5 text-right font-mono">{formatSig(g.dUm, 3)}</td>
+                <td className="px-3 py-1.5 text-center font-mono">{formatSig(g.n, 4)}</td>
+                <td className="px-3 py-1.5 text-center font-mono">{formatSig(g.NA, 4)}</td>
+                <td className="px-3 py-1.5 text-center font-mono">{formatSig(g.lMm * 1000, 3)}</td>
+                <td className="px-3 py-1.5 text-center font-mono">{formatSig(g.dUm, 3)}</td>
               </tr>
             ))}
           </tbody>
